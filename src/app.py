@@ -73,8 +73,29 @@ def main():
             
             for i, symbol in enumerate(symbols):
                 with tabs[i]:
-                    st.subheader(f"{symbol} Cumulative Returns (%)")
-                    st.line_chart(stock_cumulative[symbol])
+                    # Time period charts for cumulative returns
+                    periods = {
+                        "1 Week": 7,
+                        "1 Month": 30,
+                        "3 Months": 90,
+                        "1 Year": 365
+                    }
+                    
+                    for period_name, days in periods.items():
+                        period_start = stock_cumulative[symbol].index[-1] - pd.Timedelta(days=days)
+                        period_data = stock_cumulative[symbol][stock_cumulative[symbol].index >= period_start]
+                        
+                        # Rebase to 100 at start of period
+                        period_data = 100 * (1 + (period_data - period_data.iloc[0]) / 100)
+                        
+                        st.subheader(f"{symbol} Cumulative Returns (%) - {period_name}")
+                        fig = px.line(
+                            period_data,
+                            title=f"{period_name} Performance",
+                            labels={"value": "Cumulative Return (%)", "date": "Date"}
+                        )
+                        fig.update_layout(showlegend=False)
+                        st.plotly_chart(fig, use_container_width=True)
                     
                     st.subheader(f"{symbol} Annualized Volatility (%) - {lookback_window} Day Window")
                     st.line_chart(stock_volatility[symbol])
