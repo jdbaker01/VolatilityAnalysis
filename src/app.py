@@ -147,7 +147,7 @@ def main():
                     st.dataframe(results_df.round(2))
             
             # Display portfolio results
-            with tabs[-3]:
+            with tabs[-4]:
                 st.subheader("Portfolio Cumulative Returns (%)")
                 st.line_chart(portfolio_cumulative)
                 
@@ -162,7 +162,7 @@ def main():
                 st.dataframe(portfolio_df.round(2))
                 
             # Display correlation matrix
-            with tabs[-2]:
+            with tabs[-3]:
                 st.subheader("Correlation Matrix")
                 
                 # Calculate correlation matrix
