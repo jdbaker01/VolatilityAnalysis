@@ -32,7 +32,16 @@
    - Graceful handling of failed stock retrievals
 
 ### What's Left to Build
-1. Correlation Analysis (Completed ✅)
+1. Value at Risk Analysis (High Priority)
+   - [ ] Add VaR calculation module
+   - [ ] Create VaR tab in UI
+   - [ ] Implement historical VaR calculation
+   - [ ] Add VaR visualization
+   - [ ] Add confidence level selection
+   - [ ] Add time horizon selection
+   - [ ] Add portfolio-level VaR analysis
+
+2. Correlation Analysis (Completed ✅)
    - [x] Add correlation matrix calculation
    - [x] Create correlation matrix tab
    - [x] Implement matrix visualization with Plotly heatmap
@@ -52,20 +61,20 @@
    - [x] Performance testing
    - [x] Error handling for portfolios
 
-3. Documentation
+4. Documentation
    - [ ] Cache system documentation
    - [ ] Portfolio feature documentation
    - [ ] Multi-stock usage guide
    - [ ] Performance considerations
    - [ ] API documentation
 
-4. UI Enhancements (Completed ✅)
+5. UI Enhancements (Completed ✅)
    - [x] Add correlation matrix tab
    - [x] Improve matrix visualization with interactive heatmap
    - [x] Add correlation tooltips through Plotly
    - [x] Optimize matrix display for many stocks
 
-5. Performance Optimization (Partially Completed ✅)
+6. Performance Optimization (Partially Completed ✅)
    - ✅ Parallel data fetching implemented
    - ✅ Cache lookup optimized with timezone handling
    - ✅ Portfolio calculation optimized for typical use cases
