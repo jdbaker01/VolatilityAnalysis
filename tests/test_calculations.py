@@ -14,7 +14,7 @@ from src.calculations import (
 @pytest.fixture
 def sample_stock_data():
     """Create sample stock data for testing."""
-    dates = pd.date_range(start='2023-01-01', end='2023-01-10')
+    dates = pd.date_range(start='2023-01-01', end='2023-01-10', tz='UTC')
     prices = [100, 102, 99, 101, 103, 102, 105, 107, 106, 108]
     return pd.DataFrame({
         'Close': prices
@@ -23,14 +23,14 @@ def sample_stock_data():
 @pytest.fixture
 def sample_returns():
     """Create sample returns data for testing."""
-    dates = pd.date_range(start='2023-01-01', end='2023-01-10')
+    dates = pd.date_range(start='2023-01-01', end='2023-01-10', tz='UTC')
     returns = [0.02, -0.03, 0.02, 0.02, -0.01, 0.03, 0.019, -0.009, 0.019]
     return pd.Series(returns, index=dates[1:])
 
 @pytest.fixture
 def multi_stock_returns():
     """Create sample returns data for multiple stocks."""
-    dates = pd.date_range(start='2023-01-01', end='2023-01-10')
+    dates = pd.date_range(start='2023-01-01', end='2023-01-10', tz='UTC')
     stock1 = [0.02, -0.03, 0.02, 0.02, -0.01, 0.03, 0.019, -0.009, 0.019]
     stock2 = [0.01, -0.02, 0.03, 0.01, -0.02, 0.02, 0.015, -0.005, 0.025]
     return {
@@ -48,13 +48,14 @@ def test_calculate_daily_returns_valid(sample_stock_data):
 
 def test_calculate_daily_returns_empty():
     """Test daily returns calculation with empty data."""
-    empty_df = pd.DataFrame({'Close': []})
+    empty_df = pd.DataFrame({'Close': []}, index=pd.DatetimeIndex([], tz='UTC'))
     with pytest.raises(ValueError, match="No valid data for calculating returns"):
         calculate_daily_returns(empty_df)
 
 def test_calculate_daily_returns_missing_column():
     """Test daily returns calculation with missing Close column."""
-    df = pd.DataFrame({'Open': [100, 101, 102]})
+    dates = pd.date_range(start='2023-01-01', end='2023-01-03', tz='UTC')
+    df = pd.DataFrame({'Open': [100, 101, 102]}, index=dates)
     with pytest.raises(ValueError, match="DataFrame must contain a 'Close' price column"):
         calculate_daily_returns(df)
 

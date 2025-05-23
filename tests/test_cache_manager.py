@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import shutil
 from datetime import datetime
+import pytz
 from src.cache_manager import CacheManager
 
 # Test Data Setup
@@ -20,13 +21,12 @@ def cache_manager(test_cache_dir):
 @pytest.fixture
 def sample_stock_data():
     """Create sample stock data for testing."""
-    dates = pd.date_range(start='2023-01-01', end='2023-01-10', freq='D')
+    dates = pd.date_range(start='2023-01-01', end='2023-01-10', freq='D', tz='UTC')
     data = {
         'Close': [100, 102, 99, 101, 103, 102, 105, 107, 106, 108],
         'Volume': [1000, 1200, 900, 1100, 1300, 1100, 1400, 1500, 1200, 1300]
     }
     df = pd.DataFrame(data, index=dates)
-    df.index = pd.DatetimeIndex(df.index.date)  # Convert to date-only index
     return df
 
 # Directory Structure Tests
@@ -48,8 +48,8 @@ def test_save_and_load_data(cache_manager, sample_stock_data):
     symbol = "AAPL"
     cache_manager.save_to_cache(symbol, sample_stock_data)
     
-    start_date = datetime(2023, 1, 1)
-    end_date = datetime(2023, 1, 10)
+    start_date = pytz.UTC.localize(datetime(2023, 1, 1))
+    end_date = pytz.UTC.localize(datetime(2023, 1, 10))
     
     loaded_data = cache_manager.get_cached_data(symbol, start_date, end_date)
     pd.testing.assert_frame_equal(loaded_data, sample_stock_data, check_freq=False)
@@ -59,11 +59,11 @@ def test_save_overlapping_data(cache_manager):
     symbol = "AAPL"
     
     # First dataset: 2023-01-01 to 2023-01-05
-    dates1 = pd.date_range(start='2023-01-01', end='2023-01-05')
+    dates1 = pd.date_range(start='2023-01-01', end='2023-01-05', tz='UTC')
     data1 = pd.DataFrame({'Close': [100, 102, 99, 101, 103]}, index=dates1)
     
     # Second dataset: 2023-01-03 to 2023-01-07
-    dates2 = pd.date_range(start='2023-01-03', end='2023-01-07')
+    dates2 = pd.date_range(start='2023-01-03', end='2023-01-07', tz='UTC')
     data2 = pd.DataFrame({'Close': [98, 100, 102, 101, 104]}, index=dates2)
     
     # Save both datasets
@@ -71,14 +71,20 @@ def test_save_overlapping_data(cache_manager):
     cache_manager.save_to_cache(symbol, data2)
     
     # Load the entire range
-    start_date = datetime(2023, 1, 1)
-    end_date = datetime(2023, 1, 7)
+    start_date = pytz.UTC.localize(datetime(2023, 1, 1))
+    end_date = pytz.UTC.localize(datetime(2023, 1, 7))
     loaded_data = cache_manager.get_cached_data(symbol, start_date, end_date)
     
     # Check the data is merged properly
-    assert len(loaded_data) == len(pd.date_range(start='2023-01-01', end='2023-01-07'))
-    assert loaded_data.index[0] == pd.Timestamp('2023-01-01')
-    assert loaded_data.index[-1] == pd.Timestamp('2023-01-07')
+    expected_range = pd.date_range(start='2023-01-01', end='2023-01-07', tz='UTC')
+    assert len(loaded_data) == len(expected_range)
+    assert loaded_data.index[0] == expected_range[0]
+    assert loaded_data.index[-1] == expected_range[-1]
+    
+    # Check that the data values are correct (should keep the latest values for overlapping dates)
+    assert loaded_data.loc[expected_range[0], 'Close'] == 100  # From data1
+    assert loaded_data.loc[expected_range[2], 'Close'] == 98   # From data2 (overlapping date)
+    assert loaded_data.loc[expected_range[-1], 'Close'] == 104 # From data2
 
 # Cache Validation Tests
 def test_has_cached_data(cache_manager, sample_stock_data):
@@ -89,22 +95,22 @@ def test_has_cached_data(cache_manager, sample_stock_data):
     # Test exact date range
     assert cache_manager.has_cached_data(
         symbol,
-        datetime(2023, 1, 1),
-        datetime(2023, 1, 10)
+        pytz.UTC.localize(datetime(2023, 1, 1)),
+        pytz.UTC.localize(datetime(2023, 1, 10))
     )
     
     # Test subset of date range
     assert cache_manager.has_cached_data(
         symbol,
-        datetime(2023, 1, 2),
-        datetime(2023, 1, 5)
+        pytz.UTC.localize(datetime(2023, 1, 2)),
+        pytz.UTC.localize(datetime(2023, 1, 5))
     )
     
     # Test date range not in cache
     assert not cache_manager.has_cached_data(
         symbol,
-        datetime(2022, 12, 1),
-        datetime(2022, 12, 31)
+        pytz.UTC.localize(datetime(2022, 12, 1)),
+        pytz.UTC.localize(datetime(2022, 12, 31))
     )
 
 def test_date_range_merging(cache_manager):
@@ -166,8 +172,8 @@ def test_invalid_date_range(cache_manager, sample_stock_data):
     # End date before start date
     result = cache_manager.get_cached_data(
         symbol,
-        datetime(2023, 1, 10),
-        datetime(2023, 1, 1)
+        pytz.UTC.localize(datetime(2023, 1, 10)),
+        pytz.UTC.localize(datetime(2023, 1, 1))
     )
     assert result is None
 
@@ -175,7 +181,7 @@ def test_missing_symbol(cache_manager):
     """Test handling of non-existent symbol."""
     result = cache_manager.get_cached_data(
         "INVALID",
-        datetime(2023, 1, 1),
-        datetime(2023, 1, 10)
+        pytz.UTC.localize(datetime(2023, 1, 1)),
+        pytz.UTC.localize(datetime(2023, 1, 10))
     )
     assert result is None

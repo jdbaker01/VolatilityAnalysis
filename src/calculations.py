@@ -87,10 +87,14 @@ def calculate_daily_returns(df: pd.DataFrame) -> pd.Series:
         pd.Series: Daily percentage returns as decimals (e.g., 0.05 for 5%)
     """
     try:
+        # Convert index to datetime if it's not already
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+        
         # Ensure index is timezone-aware
         if df.index.tz is None:
             df.index = df.index.tz_localize('UTC')
-            
+        
         # Calculate daily returns using percentage change of closing prices
         daily_returns = df['Close'].pct_change()
         

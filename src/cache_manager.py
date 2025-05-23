@@ -178,7 +178,14 @@ class CacheManager:
         # If we have existing data, merge it
         if os.path.exists(data_path):
             existing_data = pd.read_csv(data_path, index_col=0)
-            existing_data.index = pd.to_datetime(existing_data.index)
+            existing_data.index = pd.to_datetime(existing_data.index, utc=True)
+            # Ensure both DataFrames have timezone-aware indices
+            if existing_data.index.tz is None:
+                existing_data.index = existing_data.index.tz_localize('UTC')
+            if data.index.tz is None:
+                data.index = data.index.tz_localize('UTC')
+                
+            # Merge data, keeping the latest values for duplicates
             data = pd.concat([existing_data, data])
             data = data[~data.index.duplicated(keep='last')]
             data = data.sort_index()

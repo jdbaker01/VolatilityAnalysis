@@ -7,7 +7,7 @@ from src.correlation import calculate_correlation_matrix, format_correlation_mat
 @pytest.fixture
 def sample_returns():
     """Create sample returns data for multiple stocks."""
-    dates = pd.date_range(start='2023-01-01', end='2023-01-10')
+    dates = pd.date_range(start='2023-01-01', end='2023-01-10', tz='UTC')
     # Create returns with known correlation:
     # stock1 and stock2: perfectly positively correlated (1.0)
     # stock1 and stock3: perfectly negatively correlated (-1.0)
@@ -53,7 +53,7 @@ def test_calculate_correlation_matrix_valid(sample_returns):
 
 def test_calculate_correlation_matrix_single_stock():
     """Test correlation matrix calculation with single stock (should fail)."""
-    dates = pd.date_range(start='2023-01-01', end='2023-01-10')
+    dates = pd.date_range(start='2023-01-01', end='2023-01-10', tz='UTC')
     single_stock = {'STOCK1': pd.Series([0.01, 0.02, -0.01], index=dates[:3])}
     
     with pytest.raises(ValueError, match="At least 2 stocks are required for correlation analysis"):
