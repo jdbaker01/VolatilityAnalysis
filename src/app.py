@@ -20,7 +20,8 @@ from src.calculations import (
     calculate_volatility,
     calculate_portfolio_returns,
     calculate_portfolio_volatility,
-    calculate_rolling_var
+    calculate_rolling_var,
+    calculate_covariance_matrix
 )
 from src.correlation import calculate_correlation_matrix, format_correlation_matrix
 
@@ -96,7 +97,7 @@ def main():
             
             # Display results in tabs
             st.header("Analysis Results")
-            tabs = st.tabs(symbols + ["Portfolio", "Correlation", "Value-at-Risk"])
+            tabs = st.tabs(symbols + ["Portfolio", "Correlation", "Value-at-Risk", "Covariance"])
             
             for i, symbol in enumerate(symbols):
                 with tabs[i]:
@@ -144,7 +145,7 @@ def main():
                     st.dataframe(results_df.round(2))
             
             # Display portfolio results
-            with tabs[-2]:
+            with tabs[-3]:
                 st.subheader("Portfolio Cumulative Returns (%)")
                 st.line_chart(portfolio_cumulative)
                 
@@ -185,40 +186,27 @@ def main():
                 st.dataframe(formatted_matrix)
                 
             # Display Value-at-Risk analysis
-            with tabs[-1]:
+            with tabs[-2]:
                 st.subheader("Value-at-Risk (VaR) Analysis")
                 
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Add VaR confidence level selector
-                    confidence_level = st.selectbox(
-                        "Confidence Level",
-                        [0.90, 0.95, 0.99],
-                        index=1,
-                        format_func=lambda x: f"{int(x*100)}%",
-                        help="Probability level for VaR calculation"
-                    )
-                
-                with col2:
-                    # Add VaR type selector
-                    var_type = st.radio(
-                        "VaR Type",
-                        ["Daily", "Annual"],
-                        help="Choose between daily or annualized VaR"
-                    )
+                # Add VaR confidence level selector
+                confidence_level = st.selectbox(
+                    "Confidence Level",
+                    [0.90, 0.95, 0.99],
+                    index=1,
+                    format_func=lambda x: f"{int(x*100)}%",
+                    help="Probability level for VaR calculation"
+                )
                 
                 # Calculate VaR for each asset and portfolio
                 var_results = {}
-                annualized = var_type == "Annual"
                 
                 for symbol, returns in stock_returns.items():
                     var = calculate_rolling_var(
                         returns,
                         window=lookback_window,
                         confidence_level=confidence_level,
-                        method="historical",
-                        annualized=annualized
+                        method="historical"
                     ) * 100  # Convert to percentage
                     var_results[symbol] = var
                 
@@ -227,20 +215,19 @@ def main():
                     portfolio_returns,
                     window=lookback_window,
                     confidence_level=confidence_level,
-                    method="historical",
-                    annualized=annualized
+                    method="historical"
                 ) * 100  # Convert to percentage
                 
                 # Display VaR charts
-                st.subheader(f"Rolling {int(confidence_level*100)}% {var_type} VaR")
+                st.subheader(f"Rolling {int(confidence_level*100)}% Daily VaR")
                 
                 # Individual assets VaR
                 for symbol in stock_returns.keys():
-                    st.subheader(f"{symbol} {var_type} VaR (%)")
+                    st.subheader(f"{symbol} Daily VaR (%)")
                     st.line_chart(var_results[symbol])
                 
                 # Portfolio VaR
-                st.subheader(f"Portfolio {var_type} VaR (%)")
+                st.subheader("Portfolio Daily VaR (%)")
                 st.line_chart(portfolio_var)
                 
                 # Display current VaR values
@@ -249,10 +236,35 @@ def main():
                 current_vars["Portfolio"] = portfolio_var.iloc[-1]
                 
                 var_df = pd.DataFrame({
-                    f"{int(confidence_level*100)}% {var_type} VaR (%)": current_vars
+                    f"{int(confidence_level*100)}% Daily VaR (%)": current_vars
                 }).round(2)
                 
                 st.dataframe(var_df)
+                
+            # Display covariance matrix
+            with tabs[-1]:
+                st.subheader("Covariance Matrix")
+                
+                # Calculate covariance matrix
+                covariance_matrix = calculate_covariance_matrix(stock_returns)
+                
+                # Create heatmap using plotly
+                fig = px.imshow(
+                    covariance_matrix,
+                    labels=dict(color="Covariance"),
+                    color_continuous_scale="RdBu",
+                    aspect="auto"
+                )
+                fig.update_layout(
+                    title="Returns Covariance Heatmap",
+                    xaxis_title="Stock Symbol",
+                    yaxis_title="Stock Symbol"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Display covariance matrix table
+                st.subheader("Covariance Matrix Table")
+                st.dataframe(covariance_matrix.round(6))
             
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)
