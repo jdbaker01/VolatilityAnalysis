@@ -3,16 +3,30 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
-from src.logger import logger
-from src.data_handler import get_multiple_stocks_data
-from src.calculations import (
-    calculate_daily_returns,
-    calculate_cumulative_returns,
-    calculate_volatility,
-    calculate_portfolio_returns,
-    calculate_portfolio_volatility
-)
-from src.correlation import calculate_correlation_matrix, format_correlation_matrix
+try:
+    # Try relative imports first (for local development)
+    from .logger import logger
+    from .data_handler import get_multiple_stocks_data
+    from .calculations import (
+        calculate_daily_returns,
+        calculate_cumulative_returns,
+        calculate_volatility,
+        calculate_portfolio_returns,
+        calculate_portfolio_volatility
+    )
+    from .correlation import calculate_correlation_matrix, format_correlation_matrix
+except ImportError:
+    # Fall back to absolute imports (for Streamlit Cloud)
+    from src.logger import logger
+    from src.data_handler import get_multiple_stocks_data
+    from src.calculations import (
+        calculate_daily_returns,
+        calculate_cumulative_returns,
+        calculate_volatility,
+        calculate_portfolio_returns,
+        calculate_portfolio_volatility
+    )
+    from src.correlation import calculate_correlation_matrix, format_correlation_matrix
 
 def main():
     st.title("Stock Volatility Analysis")
