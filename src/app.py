@@ -217,28 +217,45 @@ def main():
                     method="historical"
                 ) * 100  # Convert to percentage
                 
-                # Display VaR charts
-                st.subheader(f"Rolling {int(confidence_level*100)}% Daily VaR")
-                
-                # Individual assets VaR
-                for symbol in stock_returns.keys():
-                    st.subheader(f"{symbol} Daily VaR (%)")
-                    st.line_chart(var_results[symbol])
-                
-                # Portfolio VaR
+                # Display Portfolio VaR first
                 st.subheader("Portfolio Daily VaR (%)")
                 st.line_chart(portfolio_var)
                 
+                # Calculate and display average VaR values
+                st.subheader("Portfolio VaR Averages")
+                periods = {
+                    "20 Days": 20,
+                    "90 Days": 90,
+                    "200 Days": 200
+                }
+                
+                avg_vars = {}
+                for period_name, days in periods.items():
+                    if len(portfolio_var) >= days:
+                        avg_var = portfolio_var.tail(days).mean()
+                        avg_vars[period_name] = avg_var
+                
+                avg_var_df = pd.DataFrame({
+                    f"{int(confidence_level*100)}% Daily VaR Average (%)": avg_vars
+                }).round(2)
+                st.dataframe(avg_var_df)
+                
                 # Display current VaR values
                 st.subheader("Current VaR Values")
-                current_vars = {symbol: var_series.iloc[-1] for symbol, var_series in var_results.items()}
-                current_vars["Portfolio"] = portfolio_var.iloc[-1]
+                current_vars = {"Portfolio": portfolio_var.iloc[-1]}
+                for symbol, var_series in var_results.items():
+                    current_vars[symbol] = var_series.iloc[-1]
                 
                 var_df = pd.DataFrame({
                     f"{int(confidence_level*100)}% Daily VaR (%)": current_vars
                 }).round(2)
-                
                 st.dataframe(var_df)
+                
+                # Individual assets VaR
+                st.subheader("Individual Assets Daily VaR (%)")
+                for symbol in stock_returns.keys():
+                    st.subheader(f"{symbol}")
+                    st.line_chart(var_results[symbol])
                 
             # Display covariance matrix
             with tabs[-1]:
