@@ -3,15 +3,16 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
-from data_handler import get_multiple_stocks_data
-from calculations import (
+from src.logger import logger
+from src.data_handler import get_multiple_stocks_data
+from src.calculations import (
     calculate_daily_returns,
     calculate_cumulative_returns,
     calculate_volatility,
     calculate_portfolio_returns,
     calculate_portfolio_volatility
 )
-from correlation import calculate_correlation_matrix, format_correlation_matrix
+from src.correlation import calculate_correlation_matrix, format_correlation_matrix
 
 def main():
     st.title("Stock Volatility Analysis")
@@ -44,7 +45,9 @@ def main():
                 # Parse symbols
                 symbols = [s.strip() for s in symbols_input.split(',') if s.strip()]
                 if not symbols:
+                    logger.warning("No stock symbols provided")
                     raise ValueError("Please enter at least one stock symbol")
+                logger.info(f"Analyzing symbols: {', '.join(symbols)}")
                 
                 # Convert dates to datetime with UTC timezone
                 start_datetime = pytz.UTC.localize(datetime.combine(start_date, datetime.min.time()))
@@ -54,11 +57,14 @@ def main():
                 end_datetime = end_datetime + timedelta(days=1)
                 
                 with st.spinner('Fetching stock data...'):
+                    logger.info(f"Fetching data from {start_datetime} to {end_datetime}")
                     # Get stock data for all symbols
                     stock_data = get_multiple_stocks_data(symbols, start_datetime, end_datetime)
                     
+                logger.info(f"Successfully retrieved data for {len(stock_data)} symbol(s)")
                 st.success(f"Successfully retrieved data for {len(stock_data)} symbol(s)")
             except ValueError as e:
+                logger.error(f"Error during data retrieval: {str(e)}")
                 st.error(str(e))
                 return
             
@@ -169,6 +175,7 @@ def main():
                 st.dataframe(formatted_matrix)
             
         except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
             st.error(f"Error: {str(e)}")
 
 if __name__ == "__main__":

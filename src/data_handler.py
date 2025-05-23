@@ -4,7 +4,8 @@ from datetime import datetime
 import pytz
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict
-from cache_manager import CacheManager
+from src.cache_manager import CacheManager
+from src.logger import logger
 
 # Initialize cache manager
 _cache_manager = CacheManager()
@@ -33,21 +34,26 @@ def get_stock_data(symbol: str, start_date: datetime, end_date: datetime, use_ca
         end_date = pytz.UTC.localize(end_date)
         
     # Validate inputs
-    if not symbol or not isinstance(symbol, str):
-        raise ValueError("Invalid stock symbol")
-        
-    if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
-        raise ValueError("Start and end dates must be datetime objects")
-        
-    if end_date <= start_date:
-        raise ValueError("End date must be after start date")
+        if not symbol or not isinstance(symbol, str):
+            logger.error(f"Invalid stock symbol: {symbol}")
+            raise ValueError("Invalid stock symbol")
+            
+        if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
+            logger.error(f"Invalid date types: start_date={type(start_date)}, end_date={type(end_date)}")
+            raise ValueError("Start and end dates must be datetime objects")
+            
+        if end_date <= start_date:
+            logger.error(f"Invalid date range: start={start_date}, end={end_date}")
+            raise ValueError("End date must be after start date")
     
     try:
         # Check cache first if enabled
         if use_cache:
             cached_data = _cache_manager.get_cached_data(symbol, start_date, end_date)
             if cached_data is not None:
+                logger.info(f"Cache hit for {symbol} from {start_date} to {end_date}")
                 return cached_data
+            logger.info(f"Cache miss for {symbol} from {start_date} to {end_date}")
         
         # Download stock data if not in cache
         stock = yf.Ticker(symbol.upper())  # Convert to uppercase
@@ -61,12 +67,14 @@ def get_stock_data(symbol: str, start_date: datetime, end_date: datetime, use_ca
             df.index = df.index.tz_localize('UTC')
         
         if df.empty:
+            logger.warning(f"No data available for {symbol} from {start_date} to {end_date}")
             raise ValueError(f"No data available for {symbol} in the specified date range")
             
         # Verify required columns exist
         required_columns = ['Close']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
+            logger.error(f"Missing columns for {symbol}: {', '.join(missing_columns)}")
             raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
             
         # Sort by date to ensure proper order for calculations
@@ -75,12 +83,15 @@ def get_stock_data(symbol: str, start_date: datetime, end_date: datetime, use_ca
         # Save to cache if enabled
         if use_cache:
             _cache_manager.save_to_cache(symbol, df)
+            logger.info(f"Saved data to cache for {symbol} from {start_date} to {end_date}")
             
         return df
         
     except Exception as e:
         if "Invalid ticker" in str(e):
+            logger.error(f"Invalid stock symbol: {symbol}")
             raise ValueError(f"Invalid stock symbol: {symbol}")
+        logger.error(f"Error retrieving data for {symbol}: {str(e)}")
         raise ValueError(f"Error retrieving data for {symbol}: {str(e)}")
 def get_multiple_stocks_data(symbols: List[str], start_date: datetime, end_date: datetime, use_cache: bool = True) -> Dict[str, pd.DataFrame]:
     """

@@ -5,6 +5,7 @@ from datetime import datetime
 import pytz
 from typing import Optional, Dict, Any
 import pandas as pd
+from src.logger import logger
 
 class CacheManager:
     def __init__(self, cache_dir: str = "cache"):
@@ -20,12 +21,14 @@ class CacheManager:
     def _ensure_cache_directory(self) -> None:
         """Create the cache directory if it doesn't exist."""
         if not os.path.exists(self.cache_dir):
+            logger.info(f"Creating cache directory: {self.cache_dir}")
             os.makedirs(self.cache_dir)
     
     def _get_symbol_dir(self, symbol: str) -> str:
         """Get the directory path for a specific symbol."""
         symbol_dir = os.path.join(self.cache_dir, symbol.upper())
         if not os.path.exists(symbol_dir):
+            logger.info(f"Creating symbol directory: {symbol_dir}")
             os.makedirs(symbol_dir)
         return symbol_dir
     
@@ -118,6 +121,7 @@ class CacheManager:
         return False
     
     def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+        logger.debug(f"Attempting to retrieve cached data for {symbol} from {start_date} to {end_date}")
         """
         Retrieve data from cache for the given symbol and date range.
         
@@ -148,11 +152,17 @@ class CacheManager:
             df.index = pd.to_datetime(df.index, utc=True)  # Ensure index is timezone-aware datetime
             mask = (df.index >= start_date) & (df.index <= end_date)
             filtered_df = df[mask]
-            return None if filtered_df.empty else filtered_df
-        except Exception:
+            if filtered_df.empty:
+                logger.debug(f"No data found in cache for {symbol} in specified date range")
+                return None
+            logger.info(f"Successfully retrieved cached data for {symbol}")
+            return filtered_df
+        except Exception as e:
+            logger.error(f"Error reading cache for {symbol}: {str(e)}")
             return None
     
     def save_to_cache(self, symbol: str, data: pd.DataFrame) -> None:
+        logger.debug(f"Attempting to save data to cache for {symbol}")
         """
         Save data to cache for the given symbol.
         
@@ -201,6 +211,7 @@ class CacheManager:
         # Save data and metadata
         data.to_csv(data_path, date_format='%Y-%m-%d')
         self._save_metadata(symbol, metadata)
+        logger.info(f"Successfully saved data to cache for {symbol}")
     
     def clear_cache(self, symbol: Optional[str] = None) -> None:
         """
@@ -213,10 +224,12 @@ class CacheManager:
             if symbol:
                 symbol_dir = os.path.join(self.cache_dir, symbol.upper())
                 if os.path.exists(symbol_dir):
+                    logger.info(f"Clearing cache for symbol: {symbol}")
                     shutil.rmtree(symbol_dir)
                     # Don't recreate symbol directory
             else:
                 if os.path.exists(self.cache_dir):
+                    logger.info("Clearing entire cache")
                     shutil.rmtree(self.cache_dir)
                     # Don't recreate cache directory
         except Exception as e:
