@@ -100,25 +100,29 @@ def get_multiple_stocks_data(symbols: List[str], start_date: datetime, end_date:
     # Remove duplicates and clean symbols
     symbols = list(set(s.strip().upper() for s in symbols))
     
-    def fetch_single_stock(symbol: str) -> tuple[str, pd.DataFrame]:
+    def fetch_single_stock(symbol: str) -> tuple[str, pd.DataFrame, str]:
         """Helper function to fetch data for a single stock"""
         try:
             df = get_stock_data(symbol, start_date, end_date, use_cache=use_cache)
-            return symbol, df
+            return symbol, df, ""
         except Exception as e:
-            # Return empty DataFrame for failed fetches
-            return symbol, pd.DataFrame()
+            return symbol, pd.DataFrame(), str(e)
     
     # Fetch data in parallel
     stock_data = {}
+    errors = []
+    
     with ThreadPoolExecutor() as executor:
         results = executor.map(fetch_single_stock, symbols)
         
-        for symbol, df in results:
+        for symbol, df, error in results:
             if not df.empty:
                 stock_data[symbol] = df
+            else:
+                errors.append(f"{symbol}: {error}")
     
     if not stock_data:
-        raise ValueError("No valid data retrieved for any of the provided symbols")
+        error_details = "\n".join(errors)
+        raise ValueError(f"No valid data retrieved for any of the provided symbols:\n{error_details}")
     
     return stock_data

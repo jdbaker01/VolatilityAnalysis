@@ -39,17 +39,24 @@ def main():
     
     if st.sidebar.button("Analyze"):
         try:
-            # Parse symbols
-            symbols = [s.strip() for s in symbols_input.split(',') if s.strip()]
-            if not symbols:
-                raise ValueError("Please enter at least one stock symbol")
-            
-            # Convert dates to datetime
-            start_datetime = datetime.combine(start_date, datetime.min.time())
-            end_datetime = datetime.combine(end_date, datetime.min.time())
-            
-            # Get stock data for all symbols
-            stock_data = get_multiple_stocks_data(symbols, start_datetime, end_datetime)
+            try:
+                # Parse symbols
+                symbols = [s.strip() for s in symbols_input.split(',') if s.strip()]
+                if not symbols:
+                    raise ValueError("Please enter at least one stock symbol")
+                
+                # Convert dates to datetime
+                start_datetime = datetime.combine(start_date, datetime.min.time())
+                end_datetime = datetime.combine(end_date, datetime.min.time())
+                
+                with st.spinner('Fetching stock data...'):
+                    # Get stock data for all symbols
+                    stock_data = get_multiple_stocks_data(symbols, start_datetime, end_datetime)
+                    
+                st.success(f"Successfully retrieved data for {len(stock_data)} symbol(s)")
+            except ValueError as e:
+                st.error(str(e))
+                return
             
             # Calculate individual stock metrics
             stock_returns = {}
