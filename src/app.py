@@ -6,12 +6,14 @@ import pytz
 import os
 import sys
 
-# Add the project root to the Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if project_root not in sys.path:
-    sys.path.append(project_root)
+import sys
+from pathlib import Path
 
-# Now we can use absolute imports consistently
+# Add the project root to the Python path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from src.logger import logger
 from src.data_handler import get_multiple_stocks_data
 from src.calculations import (
