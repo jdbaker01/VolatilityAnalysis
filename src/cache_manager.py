@@ -2,6 +2,7 @@ import os
 import json
 import shutil
 from datetime import datetime
+import pytz
 from typing import Optional, Dict, Any
 import pandas as pd
 
@@ -78,6 +79,12 @@ class CacheManager:
                 
         return merged
     
+    def _ensure_timezone_aware(self, dt: datetime) -> datetime:
+        """Convert naive datetime to timezone-aware UTC datetime."""
+        if dt.tzinfo is None:
+            return pytz.UTC.localize(dt)
+        return dt.astimezone(pytz.UTC)
+
     def has_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> bool:
         """
         Check if data for the given symbol and date range is in cache.
@@ -90,6 +97,10 @@ class CacheManager:
         Returns:
             bool: True if data is available in cache
         """
+        # Ensure dates are timezone-aware
+        start_date = self._ensure_timezone_aware(start_date)
+        end_date = self._ensure_timezone_aware(end_date)
+        
         if end_date < start_date:
             return False
             
@@ -98,8 +109,8 @@ class CacheManager:
         end_str = end_date.strftime("%Y-%m-%d")
         
         for date_range in metadata["date_ranges"]:
-            range_start = datetime.strptime(date_range[0], "%Y-%m-%d")
-            range_end = datetime.strptime(date_range[1], "%Y-%m-%d")
+            range_start = pytz.UTC.localize(datetime.strptime(date_range[0], "%Y-%m-%d"))
+            range_end = pytz.UTC.localize(datetime.strptime(date_range[1], "%Y-%m-%d"))
             
             if range_start <= start_date and range_end >= end_date:
                 return True
@@ -118,6 +129,10 @@ class CacheManager:
         Returns:
             Optional[pd.DataFrame]: Cached data if available, None otherwise
         """
+        # Ensure dates are timezone-aware
+        start_date = self._ensure_timezone_aware(start_date)
+        end_date = self._ensure_timezone_aware(end_date)
+        
         if end_date < start_date:
             return None
             
@@ -130,7 +145,7 @@ class CacheManager:
             
         try:
             df = pd.read_csv(data_path, index_col=0)
-            df.index = pd.to_datetime(df.index)  # Ensure index is datetime
+            df.index = pd.to_datetime(df.index, utc=True)  # Ensure index is timezone-aware datetime
             mask = (df.index >= start_date) & (df.index <= end_date)
             filtered_df = df[mask]
             return None if filtered_df.empty else filtered_df
@@ -151,7 +166,9 @@ class CacheManager:
         # Ensure data is sorted by date and index is datetime
         data = data.copy()  # Create a copy to avoid modifying original
         if not isinstance(data.index, pd.DatetimeIndex):
-            data.index = pd.to_datetime(data.index)
+            data.index = pd.to_datetime(data.index, utc=True)
+        elif data.index.tz is None:
+            data.index = data.index.tz_localize('UTC')
         data = data.sort_index()
         
         # Get existing data and metadata

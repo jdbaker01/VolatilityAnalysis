@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
+import pytz
 from data_handler import get_multiple_stocks_data
 from calculations import (
     calculate_daily_returns,
@@ -45,9 +46,12 @@ def main():
                 if not symbols:
                     raise ValueError("Please enter at least one stock symbol")
                 
-                # Convert dates to datetime
-                start_datetime = datetime.combine(start_date, datetime.min.time())
-                end_datetime = datetime.combine(end_date, datetime.min.time())
+                # Convert dates to datetime with UTC timezone
+                start_datetime = pytz.UTC.localize(datetime.combine(start_date, datetime.min.time()))
+                end_datetime = pytz.UTC.localize(datetime.combine(end_date, datetime.min.time()))
+                
+                # Add one day to end_datetime to include the end date in the results
+                end_datetime = end_datetime + timedelta(days=1)
                 
                 with st.spinner('Fetching stock data...'):
                     # Get stock data for all symbols

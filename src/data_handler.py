@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import pytz
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict
 from cache_manager import CacheManager
@@ -25,6 +26,12 @@ def get_stock_data(symbol: str, start_date: datetime, end_date: datetime, use_ca
     Raises:
         ValueError: If symbol is invalid, dates are invalid, or no data is available
     """
+    # Convert dates to UTC timezone if they're naive
+    if start_date.tzinfo is None:
+        start_date = pytz.UTC.localize(start_date)
+    if end_date.tzinfo is None:
+        end_date = pytz.UTC.localize(end_date)
+        
     # Validate inputs
     if not symbol or not isinstance(symbol, str):
         raise ValueError("Invalid stock symbol")
@@ -44,7 +51,14 @@ def get_stock_data(symbol: str, start_date: datetime, end_date: datetime, use_ca
         
         # Download stock data if not in cache
         stock = yf.Ticker(symbol.upper())  # Convert to uppercase
-        df = stock.history(start=start_date, end=end_date)
+        # Convert dates to string format for yfinance
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        df = stock.history(start=start_str, end=end_str)
+        
+        # Ensure the index is timezone-aware
+        if df.index.tz is None:
+            df.index = df.index.tz_localize('UTC')
         
         if df.empty:
             raise ValueError(f"No data available for {symbol} in the specified date range")
