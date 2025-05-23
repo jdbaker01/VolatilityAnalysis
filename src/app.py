@@ -265,8 +265,23 @@ def main():
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Display covariance matrix table
-                st.subheader("Covariance Matrix Table")
-                st.dataframe(covariance_matrix.round(6))
+                st.subheader("Covariance Matrix Table (%)")
+                # Convert to percentage and round to 4 decimal places
+                covariance_matrix_pct = (covariance_matrix * 100).round(4)
+                st.dataframe(covariance_matrix_pct)
+                
+                # Update heatmap to show percentages
+                fig = px.imshow(
+                    covariance_matrix_pct,
+                    labels=dict(color="Covariance (%)"),
+                    color_continuous_scale="RdBu",
+                    aspect="auto"
+                )
+                fig.update_layout(
+                    title="Returns Covariance Heatmap (%)",
+                    xaxis_title="Stock Symbol",
+                    yaxis_title="Stock Symbol"
+                )
             
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)
