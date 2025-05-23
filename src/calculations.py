@@ -111,7 +111,7 @@ def calculate_daily_returns(df: pd.DataFrame) -> pd.Series:
     except Exception as e:
         raise ValueError(f"Error calculating daily returns: {str(e)}")
 
-def calculate_var(returns: pd.Series, confidence_level: float = 0.95, method: str = 'historical') -> float:
+def calculate_var(returns: pd.Series, confidence_level: float = 0.95, method: str = 'historical', annualized: bool = False) -> float:
     """
     Calculate Value at Risk (VaR) using either historical or parametric method.
     
@@ -149,12 +149,15 @@ def calculate_var(returns: pd.Series, confidence_level: float = 0.95, method: st
         else:
             raise ValueError("Method must be either 'historical' or 'parametric'")
             
+        # Annualize if requested
+        if annualized:
+            var = var * np.sqrt(252)
         return var
         
     except Exception as e:
         raise ValueError(f"Error calculating VaR: {str(e)}")
 
-def calculate_rolling_var(returns: pd.Series, window: int = 21, confidence_level: float = 0.95, method: str = 'historical') -> pd.Series:
+def calculate_rolling_var(returns: pd.Series, window: int = 21, confidence_level: float = 0.95, method: str = 'historical', annualized: bool = False) -> pd.Series:
     """
     Calculate rolling Value at Risk (VaR) over a specified window.
     
@@ -163,6 +166,7 @@ def calculate_rolling_var(returns: pd.Series, window: int = 21, confidence_level
         window (int): Rolling window size in trading days
         confidence_level (float): Confidence level (e.g., 0.95 for 95%)
         method (str): Method to use ('historical' or 'parametric')
+        annualized (bool): If True, annualize the VaR by multiplying by sqrt(252)
         
     Returns:
         pd.Series: Rolling VaR values as decimals
@@ -173,7 +177,7 @@ def calculate_rolling_var(returns: pd.Series, window: int = 21, confidence_level
             
         # Calculate rolling VaR
         rolling_var = returns.rolling(window=window, min_periods=window).apply(
-            lambda x: calculate_var(x, confidence_level, method)
+            lambda x: calculate_var(x, confidence_level, method, annualized)
         )
         
         return rolling_var

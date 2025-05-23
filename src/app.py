@@ -205,45 +205,83 @@ def main():
                     help="Method to calculate VaR"
                 )
                 
-                # Calculate VaR for each asset and portfolio
-                var_results = {}
+                # Calculate daily and annualized VaR for each asset and portfolio
+                daily_var_results = {}
+                annual_var_results = {}
                 
                 for symbol, returns in stock_returns.items():
-                    rolling_var = calculate_rolling_var(
+                    # Daily VaR
+                    daily_var = calculate_rolling_var(
                         returns,
                         window=lookback_window,
                         confidence_level=confidence_level,
-                        method=var_method
+                        method=var_method,
+                        annualized=False
                     ) * 100  # Convert to percentage
-                    var_results[symbol] = rolling_var
+                    daily_var_results[symbol] = daily_var
+                    
+                    # Annualized VaR
+                    annual_var = calculate_rolling_var(
+                        returns,
+                        window=lookback_window,
+                        confidence_level=confidence_level,
+                        method=var_method,
+                        annualized=True
+                    ) * 100  # Convert to percentage
+                    annual_var_results[symbol] = annual_var
                 
                 # Calculate portfolio VaR
-                portfolio_var = calculate_rolling_var(
+                daily_portfolio_var = calculate_rolling_var(
                     portfolio_returns,
                     window=lookback_window,
                     confidence_level=confidence_level,
-                    method=var_method
+                    method=var_method,
+                    annualized=False
+                ) * 100  # Convert to percentage
+                
+                annual_portfolio_var = calculate_rolling_var(
+                    portfolio_returns,
+                    window=lookback_window,
+                    confidence_level=confidence_level,
+                    method=var_method,
+                    annualized=True
                 ) * 100  # Convert to percentage
                 
                 # Display VaR charts
                 st.subheader(f"Rolling {int(confidence_level*100)}% VaR ({var_method.capitalize()} Method)")
                 
                 # Individual assets VaR
-                for symbol, var_series in var_results.items():
-                    st.subheader(f"{symbol} Value-at-Risk (%)")
-                    st.line_chart(var_series)
+                for symbol in stock_returns.keys():
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader(f"{symbol} Daily VaR (%)")
+                        st.line_chart(daily_var_results[symbol])
+                    
+                    with col2:
+                        st.subheader(f"{symbol} Annual VaR (%)")
+                        st.line_chart(annual_var_results[symbol])
                 
                 # Portfolio VaR
-                st.subheader(f"Portfolio Value-at-Risk (%)")
-                st.line_chart(portfolio_var)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("Portfolio Daily VaR (%)")
+                    st.line_chart(daily_portfolio_var)
+                with col2:
+                    st.subheader("Portfolio Annual VaR (%)")
+                    st.line_chart(annual_portfolio_var)
                 
                 # Display current VaR values
                 st.subheader("Current VaR Values")
-                current_vars = {symbol: var_series.iloc[-1] for symbol, var_series in var_results.items()}
-                current_vars["Portfolio"] = portfolio_var.iloc[-1]
+                current_daily_vars = {symbol: var_series.iloc[-1] for symbol, var_series in daily_var_results.items()}
+                current_annual_vars = {symbol: var_series.iloc[-1] for symbol, var_series in annual_var_results.items()}
+                
+                current_daily_vars["Portfolio"] = daily_portfolio_var.iloc[-1]
+                current_annual_vars["Portfolio"] = annual_portfolio_var.iloc[-1]
                 
                 var_df = pd.DataFrame({
-                    f"{int(confidence_level*100)}% VaR (%)": current_vars
+                    f"{int(confidence_level*100)}% Daily VaR (%)": current_daily_vars,
+                    f"{int(confidence_level*100)}% Annual VaR (%)": current_annual_vars
                 }).round(2)
                 
                 st.dataframe(var_df)
