@@ -3,30 +3,25 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
-try:
-    # Try relative imports first (for local development)
-    from .logger import logger
-    from .data_handler import get_multiple_stocks_data
-    from .calculations import (
-        calculate_daily_returns,
-        calculate_cumulative_returns,
-        calculate_volatility,
-        calculate_portfolio_returns,
-        calculate_portfolio_volatility
-    )
-    from .correlation import calculate_correlation_matrix, format_correlation_matrix
-except ImportError:
-    # Fall back to absolute imports (for Streamlit Cloud)
-    from src.logger import logger
-    from src.data_handler import get_multiple_stocks_data
-    from src.calculations import (
-        calculate_daily_returns,
-        calculate_cumulative_returns,
-        calculate_volatility,
-        calculate_portfolio_returns,
-        calculate_portfolio_volatility
-    )
-    from src.correlation import calculate_correlation_matrix, format_correlation_matrix
+import os
+import sys
+
+# Add the project root to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+# Now we can use absolute imports consistently
+from src.logger import logger
+from src.data_handler import get_multiple_stocks_data
+from src.calculations import (
+    calculate_daily_returns,
+    calculate_cumulative_returns,
+    calculate_volatility,
+    calculate_portfolio_returns,
+    calculate_portfolio_volatility
+)
+from src.correlation import calculate_correlation_matrix, format_correlation_matrix
 
 def main():
     st.title("Stock Volatility Analysis")
