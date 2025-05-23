@@ -19,7 +19,8 @@ from src.calculations import (
     calculate_cumulative_returns,
     calculate_volatility,
     calculate_portfolio_returns,
-    calculate_portfolio_volatility
+    calculate_portfolio_volatility,
+    calculate_rolling_var
 )
 from src.correlation import calculate_correlation_matrix, format_correlation_matrix
 
@@ -30,8 +31,8 @@ def main():
     st.sidebar.header("Input Parameters")
     symbols_input = st.sidebar.text_input(
         "Stock Symbols (comma-separated)", 
-        "AAPL,MSFT,GOOGL",
-        help="Enter stock symbols separated by commas (e.g., AAPL,MSFT,GOOGL)"
+        "SPY,IEF,GSG",
+        help="Enter stock symbols separated by commas (e.g., SPY,IEF,GSG)"
     )
     
     # Default dates
@@ -95,7 +96,7 @@ def main():
             
             # Display results in tabs
             st.header("Analysis Results")
-            tabs = st.tabs(symbols + ["Portfolio", "Correlation"])
+            tabs = st.tabs(symbols + ["Portfolio", "Correlation", "Value-at-Risk"])
             
             for i, symbol in enumerate(symbols):
                 with tabs[i]:
@@ -158,7 +159,7 @@ def main():
                 st.dataframe(portfolio_df.round(2))
                 
             # Display correlation matrix
-            with tabs[-1]:
+            with tabs[-2]:
                 st.subheader("Correlation Matrix")
                 
                 # Calculate correlation matrix
@@ -182,6 +183,70 @@ def main():
                 st.subheader("Correlation Matrix Table")
                 formatted_matrix = format_correlation_matrix(correlation_matrix)
                 st.dataframe(formatted_matrix)
+                
+            # Display Value-at-Risk analysis
+            with tabs[-1]:
+                st.subheader("Value-at-Risk (VaR) Analysis")
+                
+                # Add VaR confidence level selector
+                confidence_level = st.selectbox(
+                    "Confidence Level",
+                    [0.90, 0.95, 0.99],
+                    index=1,
+                    format_func=lambda x: f"{int(x*100)}%",
+                    help="Probability level for VaR calculation"
+                )
+                
+                # Add VaR method selector
+                var_method = st.selectbox(
+                    "VaR Calculation Method",
+                    ["historical", "parametric"],
+                    format_func=lambda x: x.capitalize(),
+                    help="Method to calculate VaR"
+                )
+                
+                # Calculate VaR for each asset and portfolio
+                var_results = {}
+                
+                for symbol, returns in stock_returns.items():
+                    rolling_var = calculate_rolling_var(
+                        returns,
+                        window=lookback_window,
+                        confidence_level=confidence_level,
+                        method=var_method
+                    ) * 100  # Convert to percentage
+                    var_results[symbol] = rolling_var
+                
+                # Calculate portfolio VaR
+                portfolio_var = calculate_rolling_var(
+                    portfolio_returns,
+                    window=lookback_window,
+                    confidence_level=confidence_level,
+                    method=var_method
+                ) * 100  # Convert to percentage
+                
+                # Display VaR charts
+                st.subheader(f"Rolling {int(confidence_level*100)}% VaR ({var_method.capitalize()} Method)")
+                
+                # Individual assets VaR
+                for symbol, var_series in var_results.items():
+                    st.subheader(f"{symbol} Value-at-Risk (%)")
+                    st.line_chart(var_series)
+                
+                # Portfolio VaR
+                st.subheader(f"Portfolio Value-at-Risk (%)")
+                st.line_chart(portfolio_var)
+                
+                # Display current VaR values
+                st.subheader("Current VaR Values")
+                current_vars = {symbol: var_series.iloc[-1] for symbol, var_series in var_results.items()}
+                current_vars["Portfolio"] = portfolio_var.iloc[-1]
+                
+                var_df = pd.DataFrame({
+                    f"{int(confidence_level*100)}% VaR (%)": current_vars
+                }).round(2)
+                
+                st.dataframe(var_df)
             
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)

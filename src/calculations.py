@@ -111,6 +111,76 @@ def calculate_daily_returns(df: pd.DataFrame) -> pd.Series:
     except Exception as e:
         raise ValueError(f"Error calculating daily returns: {str(e)}")
 
+def calculate_var(returns: pd.Series, confidence_level: float = 0.95, method: str = 'historical') -> float:
+    """
+    Calculate Value at Risk (VaR) using either historical or parametric method.
+    
+    Args:
+        returns (pd.Series): Daily percentage returns as decimals
+        confidence_level (float): Confidence level (e.g., 0.95 for 95%)
+        method (str): Method to use ('historical' or 'parametric')
+        
+    Returns:
+        float: Value at Risk as a decimal (e.g., 0.02 means 2% potential loss)
+    """
+    try:
+        if returns.empty:
+            raise ValueError("No data provided for VaR calculation")
+            
+        if confidence_level <= 0 or confidence_level >= 1:
+            raise ValueError("Confidence level must be between 0 and 1")
+            
+        if method == 'historical':
+            # Historical VaR is simply the percentile of historical returns
+            var = -returns.quantile(1 - confidence_level)
+            
+        elif method == 'parametric':
+            # Parametric VaR assumes normal distribution
+            # Calculate z-score for the confidence level
+            z_score = -np.percentile(np.random.standard_normal(10000), (1 - confidence_level) * 100)
+            
+            # Calculate mean and standard deviation of returns
+            mean_return = returns.mean()
+            std_return = returns.std()
+            
+            # Calculate VaR
+            var = -(mean_return + z_score * std_return)
+            
+        else:
+            raise ValueError("Method must be either 'historical' or 'parametric'")
+            
+        return var
+        
+    except Exception as e:
+        raise ValueError(f"Error calculating VaR: {str(e)}")
+
+def calculate_rolling_var(returns: pd.Series, window: int = 21, confidence_level: float = 0.95, method: str = 'historical') -> pd.Series:
+    """
+    Calculate rolling Value at Risk (VaR) over a specified window.
+    
+    Args:
+        returns (pd.Series): Daily percentage returns as decimals
+        window (int): Rolling window size in trading days
+        confidence_level (float): Confidence level (e.g., 0.95 for 95%)
+        method (str): Method to use ('historical' or 'parametric')
+        
+    Returns:
+        pd.Series: Rolling VaR values as decimals
+    """
+    try:
+        if window < 2:
+            raise ValueError("Window size must be at least 2 days")
+            
+        # Calculate rolling VaR
+        rolling_var = returns.rolling(window=window, min_periods=window).apply(
+            lambda x: calculate_var(x, confidence_level, method)
+        )
+        
+        return rolling_var
+        
+    except Exception as e:
+        raise ValueError(f"Error calculating rolling VaR: {str(e)}")
+
 def calculate_volatility(returns: pd.Series, window: int = 21) -> pd.Series:
     """
     Calculate rolling annualized volatility from daily returns.
