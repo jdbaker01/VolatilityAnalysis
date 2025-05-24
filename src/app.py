@@ -307,34 +307,36 @@ def main():
                 st.subheader("Portfolio Composition")
                 st.write("Adjust the weights for each asset in your portfolio. Enter numbers with up to 2 decimal places (e.g., 33.33). The weights must sum to 100%.")
                 
-                # Create number input boxes for weights
-                total_weight = 0
-                new_weights = {}
-                
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    for symbol in symbols:
-                        weight = st.number_input(
-                            f"{symbol} Weight (%)",
-                            min_value=0.0,
-                            max_value=100.0,
-                            value=float(st.session_state.portfolio_weights[symbol] * 100),
-                            step=0.01,
-                            format="%.2f",
-                            key=f"weight_{symbol}",
-                            help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
-                        )
-                        new_weights[symbol] = weight
-                        total_weight += weight
-                
-                with col2:
-                    st.write("")  # Add some spacing
-                    st.write("")  # Add some spacing
-                    st.write(f"Total: {total_weight:.1f}%")
+                # Use a form to prevent auto-rerun on each input change
+                with st.form("portfolio_weights_form"):
+                    total_weight = 0
+                    new_weights = {}
                     
-                    # Add an Apply button
-                    if st.button("Apply Weights"):
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        for symbol in symbols:
+                            weight = st.number_input(
+                                f"{symbol} Weight (%)",
+                                min_value=0.0,
+                                max_value=100.0,
+                                value=float(st.session_state.portfolio_weights[symbol] * 100),
+                                step=0.01,
+                                format="%.2f",
+                                key=f"weight_{symbol}",
+                                help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
+                            )
+                            new_weights[symbol] = weight
+                            total_weight += weight
+                    
+                    with col2:
+                        st.write("")  # Add some spacing
+                        st.write("")  # Add some spacing
+                        st.write(f"Total: {total_weight:.1f}%")
+                    
+                    # Submit button for the form
+                    submitted = st.form_submit_button("Apply Weights")
+                    if submitted:
                         if np.isclose(total_weight, 100.0, rtol=1e-5):
                             # Convert percentages to decimals and update session state
                             st.session_state.portfolio_weights = {
