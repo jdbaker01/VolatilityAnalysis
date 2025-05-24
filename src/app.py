@@ -328,13 +328,19 @@ def main():
                         
                         # Initialize the session state for this input if it doesn't exist
                         if input_key not in st.session_state:
-                            st.session_state[input_key] = st.session_state.weight_inputs[symbol]
+                            st.session_state[input_key] = float(st.session_state.weight_inputs[symbol])
+                        
+                        try:
+                            current_value = float(st.session_state[input_key])
+                        except (ValueError, TypeError):
+                            current_value = float(st.session_state.portfolio_weights[symbol] * 100)
+                            st.session_state[input_key] = current_value
                         
                         weight = st.number_input(
                             f"{symbol} Weight (%)",
                             min_value=0.0,
                             max_value=100.0,
-                            value=float(st.session_state[input_key]),
+                            value=current_value,
                             step=0.01,
                             format="%.2f",
                             key=input_key,
