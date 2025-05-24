@@ -36,6 +36,56 @@ def main():
         help="Enter stock symbols separated by commas (e.g., SPY,IEF,GSG)"
     )
     
+    # Parse symbols
+    symbols = [s.strip() for s in symbols_input.split(',') if s.strip()]
+    if not symbols:
+        st.error("Please enter at least one stock symbol")
+        return
+    
+    # Initialize portfolio weights if not exists
+    if 'portfolio_weights' not in st.session_state:
+        st.session_state.portfolio_weights = {symbol: 1.0/len(symbols) for symbol in symbols}
+    
+    # Add portfolio weights section to sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Portfolio Weights")
+    st.sidebar.write("Enter weights (%) for each asset:")
+    
+    # Create a form for weights
+    with st.sidebar.form(key=f"portfolio_weights_{','.join(symbols)}"):
+        total_weight = 0
+        new_weights = {}
+        
+        # Create weight inputs
+        for symbol in symbols:
+            weight = st.number_input(
+                f"{symbol} Weight (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(st.session_state.portfolio_weights[symbol] * 100),
+                step=0.01,
+                format="%.2f",
+                key=f"weight_{symbol}_{','.join(symbols)}",
+                help="Enter a number between 0 and 100"
+            )
+            new_weights[symbol] = weight
+            total_weight += weight
+        
+        st.write(f"Total: {total_weight:.1f}%")
+        
+        # Submit button for the form
+        submitted = st.form_submit_button("Apply Weights")
+        if submitted:
+            if np.isclose(total_weight, 100.0, rtol=1e-5):
+                # Convert percentages to decimals and update session state
+                st.session_state.portfolio_weights = {
+                    symbol: weight / 100 
+                    for symbol, weight in new_weights.items()
+                }
+                st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
+            else:
+                st.warning("⚠️ Weights must sum to 100%")
+    
     # Default dates
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=3*365)  # 3 years ago
@@ -305,51 +355,15 @@ def main():
             # Display Portfolio Composition tab
             with tabs[len(symbols) + 4]:
                 st.subheader("Portfolio Composition")
-                st.write("Adjust the weights for each asset in your portfolio. Enter numbers with up to 2 decimal places (e.g., 33.33). The weights must sum to 100%.")
+                st.write("Portfolio weights can be adjusted in the sidebar. Current weights:")
                 
-                # Use a form to prevent auto-rerun on each input change
-                with st.form("portfolio_weights_form"):
-                    total_weight = 0
-                    new_weights = {}
-                    
-                    col1, col2 = st.columns([3, 1])
-                    
-                    with col1:
-                        for symbol in symbols:
-                            weight = st.number_input(
-                                f"{symbol} Weight (%)",
-                                min_value=0.0,
-                                max_value=100.0,
-                                value=float(st.session_state.portfolio_weights[symbol] * 100),
-                                step=0.01,
-                                format="%.2f",
-                                key=f"weight_{symbol}",
-                                help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
-                            )
-                            new_weights[symbol] = weight
-                            total_weight += weight
-                    
-                    with col2:
-                        st.write("")  # Add some spacing
-                        st.write("")  # Add some spacing
-                        st.write(f"Total: {total_weight:.1f}%")
-                    
-                    # Submit button for the form
-                    submitted = st.form_submit_button("Apply Weights")
-                    if submitted:
-                        if np.isclose(total_weight, 100.0, rtol=1e-5):
-                            # Convert percentages to decimals and update session state
-                            st.session_state.portfolio_weights = {
-                                symbol: weight / 100 
-                                for symbol, weight in new_weights.items()
-                            }
-                            st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
-                        else:
-                            st.warning("⚠️ Weights must sum to 100%")
-            
-        except Exception as e:
-            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
-            st.error(f"Error: {str(e)}")
+                # Display current weights in a table
+                weights_df = pd.DataFrame({
+                    'Symbol': list(st.session_state.portfolio_weights.keys()),
+                    'Weight (%)': [f"{w * 100:.2f}" for w in st.session_state.portfolio_weights.values()]
+                })
+                st.dataframe(weights_df)
+    
 
 if __name__ == "__main__":
     main()
