@@ -330,27 +330,21 @@ def main():
                         if input_key not in st.session_state:
                             st.session_state[input_key] = st.session_state.weight_inputs[symbol]
                         
-                        weight_str = st.text_input(
+                        weight = st.number_input(
                             f"{symbol} Weight (%)",
-                            value=st.session_state[input_key],
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=float(st.session_state[input_key]),
+                            step=0.01,
+                            format="%.2f",
                             key=input_key,
                             help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
                         )
                         
                         # Store the input value
-                        st.session_state.weight_inputs[symbol] = weight_str
-                        
-                        try:
-                            weight = float(weight_str)
-                            if weight < 0 or weight > 100:
-                                st.error(f"{symbol} weight must be between 0 and 100")
-                                valid_weights = False
-                            else:
-                                new_weights[symbol] = weight
-                                total_weight += weight
-                        except ValueError:
-                            st.error(f"{symbol} weight must be a number")
-                            valid_weights = False
+                        st.session_state.weight_inputs[symbol] = f"{weight:.2f}"
+                        new_weights[symbol] = weight
+                        total_weight += weight
                 
                 with col2:
                     st.write("")  # Add some spacing
