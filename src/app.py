@@ -307,47 +307,69 @@ def main():
                 st.subheader("Portfolio Composition")
                 st.write("Adjust the weights for each asset in your portfolio. Enter numbers with up to 2 decimal places (e.g., 33.33). The weights must sum to 100%.")
                 
+                # Initialize weight input states if not exists
+                if 'weight_inputs' not in st.session_state:
+                    st.session_state.weight_inputs = {
+                        symbol: f"{st.session_state.portfolio_weights[symbol] * 100:.2f}"
+                        for symbol in symbols
+                    }
+
                 # Create text input boxes for weights
                 total_weight = 0
                 new_weights = {}
                 valid_weights = True
                 
-                # First pass: collect and validate all weights
-                for symbol in symbols:
-                    current_weight = st.session_state.portfolio_weights[symbol] * 100
-                    weight_str = st.text_input(
-                        f"{symbol} Weight (%)",
-                        value=f"{current_weight:.2f}",
-                        key=f"weight_{symbol}",
-                        help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
-                    )
-                    
-                    try:
-                        weight = float(weight_str)
-                        if weight < 0 or weight > 100:
-                            st.error(f"{symbol} weight must be between 0 and 100")
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    for symbol in symbols:
+                        # Use a unique key for each input that includes the symbol
+                        input_key = f"weight_input_{symbol}"
+                        
+                        # Initialize the session state for this input if it doesn't exist
+                        if input_key not in st.session_state:
+                            st.session_state[input_key] = st.session_state.weight_inputs[symbol]
+                        
+                        weight_str = st.text_input(
+                            f"{symbol} Weight (%)",
+                            value=st.session_state[input_key],
+                            key=input_key,
+                            help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
+                        )
+                        
+                        # Store the input value
+                        st.session_state.weight_inputs[symbol] = weight_str
+                        
+                        try:
+                            weight = float(weight_str)
+                            if weight < 0 or weight > 100:
+                                st.error(f"{symbol} weight must be between 0 and 100")
+                                valid_weights = False
+                            else:
+                                new_weights[symbol] = weight
+                                total_weight += weight
+                        except ValueError:
+                            st.error(f"{symbol} weight must be a number")
                             valid_weights = False
+                
+                with col2:
+                    st.write("")  # Add some spacing
+                    st.write("")  # Add some spacing
+                    st.write(f"Total: {total_weight:.1f}%")
+                    
+                    # Add an Apply button
+                    if st.button("Apply Weights"):
+                        if valid_weights and np.isclose(total_weight, 100.0, rtol=1e-5):
+                            # Convert percentages to decimals and update session state
+                            st.session_state.portfolio_weights = {
+                                symbol: weight / 100 
+                                for symbol, weight in new_weights.items()
+                            }
+                            st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
+                        elif not valid_weights:
+                            st.error("Please fix the invalid weights before applying")
                         else:
-                            new_weights[symbol] = weight
-                            total_weight += weight
-                    except ValueError:
-                        st.error(f"{symbol} weight must be a number")
-                        valid_weights = False
-                
-                # Display total weight
-                st.write(f"Total Weight: {total_weight:.1f}%")
-                
-                # Only update weights if all are valid and sum to 100%
-                if valid_weights:
-                    if not np.isclose(total_weight, 100.0, rtol=1e-5):
-                        st.warning("⚠️ Weights must sum to 100%")
-                    else:
-                        # Convert percentages to decimals and update session state
-                        st.session_state.portfolio_weights = {
-                            symbol: weight / 100 
-                            for symbol, weight in new_weights.items()
-                        }
-                        st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
+                            st.warning("⚠️ Weights must sum to 100%")
             
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)
