@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
@@ -89,14 +90,18 @@ def main():
                 stock_cumulative[symbol] = calculate_cumulative_returns(returns) * 100  # Convert to percentage
                 stock_volatility[symbol] = calculate_volatility(returns, window=lookback_window) * 100  # Convert to percentage
             
-            # Calculate portfolio metrics
-            portfolio_returns = calculate_portfolio_returns(stock_returns)
+            # Initialize portfolio weights
+            if 'portfolio_weights' not in st.session_state:
+                st.session_state.portfolio_weights = {symbol: 1.0/len(symbols) for symbol in symbols}
+            
+            # Calculate portfolio metrics with current weights
+            portfolio_returns = calculate_portfolio_returns(stock_returns, st.session_state.portfolio_weights)
             portfolio_cumulative = calculate_cumulative_returns(portfolio_returns) * 100
-            portfolio_volatility = calculate_portfolio_volatility(stock_returns, window=lookback_window) * 100
+            portfolio_volatility = calculate_portfolio_volatility(stock_returns, window=lookback_window, weights=st.session_state.portfolio_weights) * 100
             
             # Display results in tabs
             st.header("Analysis Results")
-            tabs = st.tabs(symbols + ["Portfolio", "Correlation", "Value-at-Risk", "Covariance"])
+            tabs = st.tabs(symbols + ["Portfolio", "Correlation", "Value-at-Risk", "Covariance", "Portfolio Composition"])
             
             for i, symbol in enumerate(symbols):
                 with tabs[i]:
@@ -144,7 +149,7 @@ def main():
                     st.dataframe(results_df.round(2))
             
             # Display portfolio results
-            with tabs[-4]:
+            with tabs[len(symbols)]:
                 st.subheader("Portfolio Cumulative Returns (%)")
                 st.line_chart(portfolio_cumulative)
                 
@@ -159,7 +164,7 @@ def main():
                 st.dataframe(portfolio_df.round(2))
                 
             # Display correlation matrix
-            with tabs[-3]:
+            with tabs[len(symbols) + 1]:
                 st.subheader("Correlation Matrix")
                 
                 # Calculate correlation matrix
@@ -185,7 +190,7 @@ def main():
                 st.dataframe(formatted_matrix)
                 
             # Display Value-at-Risk analysis
-            with tabs[-2]:
+            with tabs[len(symbols) + 2]:
                 st.subheader("Value-at-Risk (VaR) Analysis")
                 
                 # Add VaR confidence level selector
@@ -258,7 +263,7 @@ def main():
                     st.line_chart(var_results[symbol])
                 
             # Display covariance matrix
-            with tabs[-1]:
+            with tabs[len(symbols) + 3]:
                 st.subheader("Covariance Matrix")
                 
                 # Calculate covariance matrix
@@ -296,6 +301,44 @@ def main():
                     xaxis_title="Stock Symbol",
                     yaxis_title="Stock Symbol"
                 )
+                
+            # Display Portfolio Composition tab
+            with tabs[len(symbols) + 4]:
+                st.subheader("Portfolio Composition")
+                st.write("Adjust the weights for each asset in your portfolio. Enter numbers with up to 2 decimal places (e.g., 33.33). The weights must sum to 100%.")
+                
+                # Create text input boxes for weights
+                total_weight = 0
+                new_weights = {}
+                
+                for symbol in symbols:
+                    weight_str = st.text_input(
+                        f"{symbol} Weight (%)",
+                        value=f"{float(st.session_state.portfolio_weights[symbol] * 100):.2f}",
+                        key=f"weight_{symbol}",
+                        help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
+                    )
+                    try:
+                        weight = float(weight_str)
+                        if weight < 0 or weight > 100:
+                            st.error(f"{symbol} weight must be between 0 and 100")
+                            continue
+                        new_weights[symbol] = weight / 100
+                        total_weight += weight
+                    except ValueError:
+                        st.error(f"{symbol} weight must be a number")
+                        continue
+                
+                # Display total weight
+                st.write(f"Total Weight: {total_weight:.1f}%")
+                
+                # Warning if weights don't sum to 100%
+                if not np.isclose(total_weight, 100.0, rtol=1e-5):
+                    st.warning("⚠️ Weights must sum to 100%")
+                else:
+                    # Update weights in session state
+                    st.session_state.portfolio_weights = new_weights
+                    st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
             
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)

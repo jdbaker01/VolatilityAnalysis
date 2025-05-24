@@ -2,12 +2,14 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List
 
-def calculate_portfolio_returns(stock_returns: Dict[str, pd.Series]) -> pd.Series:
+def calculate_portfolio_returns(stock_returns: Dict[str, pd.Series], weights: Dict[str, float] = None) -> pd.Series:
     """
-    Calculate equal-weighted portfolio returns from individual stock returns.
+    Calculate portfolio returns using provided weights or equal weights.
     
     Args:
         stock_returns (Dict[str, pd.Series]): Dictionary of stock symbols to their daily returns
+        weights (Dict[str, float], optional): Dictionary of stock symbols to their weights.
+            If None, equal weights will be used.
         
     Returns:
         pd.Series: Daily portfolio returns as decimals
@@ -19,8 +21,21 @@ def calculate_portfolio_returns(stock_returns: Dict[str, pd.Series]) -> pd.Serie
         # Combine all returns into a DataFrame
         returns_df = pd.DataFrame(stock_returns)
         
-        # Calculate equal-weighted portfolio returns
-        portfolio_returns = returns_df.mean(axis=1)
+        if weights is None:
+            # Use equal weights if none provided
+            weight_value = 1.0 / len(stock_returns)
+            weights = {symbol: weight_value for symbol in stock_returns.keys()}
+        
+        # Validate weights
+        if set(weights.keys()) != set(stock_returns.keys()):
+            raise ValueError("Weights must be provided for all stocks")
+        if not np.isclose(sum(weights.values()), 1.0, rtol=1e-5):
+            raise ValueError("Weights must sum to 1.0")
+            
+        # Calculate weighted portfolio returns
+        portfolio_returns = pd.Series(0.0, index=returns_df.index)
+        for symbol, weight in weights.items():
+            portfolio_returns += returns_df[symbol] * weight
         
         if portfolio_returns.empty:
             raise ValueError("No valid data for portfolio returns calculation")
@@ -30,7 +45,7 @@ def calculate_portfolio_returns(stock_returns: Dict[str, pd.Series]) -> pd.Serie
     except Exception as e:
         raise ValueError(f"Error calculating portfolio returns: {str(e)}")
 
-def calculate_portfolio_volatility(stock_returns: Dict[str, pd.Series], window: int = 21) -> pd.Series:
+def calculate_portfolio_volatility(stock_returns: Dict[str, pd.Series], window: int = 21, weights: Dict[str, float] = None) -> pd.Series:
     """
     Calculate equal-weighted portfolio volatility.
     
@@ -43,7 +58,7 @@ def calculate_portfolio_volatility(stock_returns: Dict[str, pd.Series], window: 
     """
     try:
         # Calculate portfolio returns first
-        portfolio_returns = calculate_portfolio_returns(stock_returns)
+        portfolio_returns = calculate_portfolio_returns(stock_returns, weights)
         
         # Calculate portfolio volatility using the standard volatility function
         portfolio_volatility = calculate_volatility(portfolio_returns, window)
