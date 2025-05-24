@@ -102,33 +102,26 @@ def main():
     
     if st.sidebar.button("Analyze"):
         try:
-            try:
-                # Parse symbols
-                symbols = [s.strip() for s in symbols_input.split(',') if s.strip()]
-                if not symbols:
-                    logger.warning("No stock symbols provided")
-                    raise ValueError("Please enter at least one stock symbol")
-                logger.info(f"Analyzing symbols: {', '.join(symbols)}")
-                
-                # Convert dates to datetime with UTC timezone
-                start_datetime = pytz.UTC.localize(datetime.combine(start_date, datetime.min.time()))
-                end_datetime = pytz.UTC.localize(datetime.combine(end_date, datetime.min.time()))
-                
-                # Add one day to end_datetime to include the end date in the results
-                end_datetime = end_datetime + timedelta(days=1)
-                
-                with st.spinner('Fetching stock data...'):
-                    logger.info(f"Fetching data from {start_datetime} to {end_datetime}")
-                    # Get stock data for all symbols
-                    stock_data = get_multiple_stocks_data(symbols, start_datetime, end_datetime)
-                    
-                logger.info(f"Successfully retrieved data for {len(stock_data)} symbol(s)")
-                st.success(f"Successfully retrieved data for {len(stock_data)} symbol(s)")
-            except ValueError as e:
-                logger.error(f"Error during data retrieval: {str(e)}")
-                st.error(str(e))
-                return
+            # Get stock data
+            symbols = [s.strip() for s in symbols_input.split(',') if s.strip()]
+            if not symbols:
+                logger.warning("No stock symbols provided")
+                raise ValueError("Please enter at least one stock symbol")
+            logger.info(f"Analyzing symbols: {', '.join(symbols)}")
             
+            # Convert dates to datetime with UTC timezone
+            start_datetime = pytz.UTC.localize(datetime.combine(start_date, datetime.min.time()))
+            end_datetime = pytz.UTC.localize(datetime.combine(end_date, datetime.min.time()))
+            end_datetime = end_datetime + timedelta(days=1)  # Include end date
+            
+            # Fetch data
+            with st.spinner('Fetching stock data...'):
+                logger.info(f"Fetching data from {start_datetime} to {end_datetime}")
+                stock_data = get_multiple_stocks_data(symbols, start_datetime, end_datetime)
+            
+            logger.info(f"Successfully retrieved data for {len(stock_data)} symbol(s)")
+            st.success(f"Successfully retrieved data for {len(stock_data)} symbol(s)")
+
             # Calculate individual stock metrics
             stock_returns = {}
             stock_cumulative = {}
@@ -139,10 +132,6 @@ def main():
                 stock_returns[symbol] = returns
                 stock_cumulative[symbol] = calculate_cumulative_returns(returns) * 100  # Convert to percentage
                 stock_volatility[symbol] = calculate_volatility(returns, window=lookback_window) * 100  # Convert to percentage
-            
-            # Initialize portfolio weights
-            if 'portfolio_weights' not in st.session_state:
-                st.session_state.portfolio_weights = {symbol: 1.0/len(symbols) for symbol in symbols}
             
             # Calculate portfolio metrics with current weights
             portfolio_returns = calculate_portfolio_returns(stock_returns, st.session_state.portfolio_weights)
@@ -363,7 +352,10 @@ def main():
                     'Weight (%)': [f"{w * 100:.2f}" for w in st.session_state.portfolio_weights.values()]
                 })
                 st.dataframe(weights_df)
-    
+        except ValueError as e:
+            logger.error(f"Error during data retrieval: {str(e)}")
+            st.error(str(e))
+            return
 
 if __name__ == "__main__":
     main()
