@@ -310,35 +310,44 @@ def main():
                 # Create text input boxes for weights
                 total_weight = 0
                 new_weights = {}
+                valid_weights = True
                 
+                # First pass: collect and validate all weights
                 for symbol in symbols:
+                    current_weight = st.session_state.portfolio_weights[symbol] * 100
                     weight_str = st.text_input(
                         f"{symbol} Weight (%)",
-                        value=f"{float(st.session_state.portfolio_weights[symbol] * 100):.2f}",
+                        value=f"{current_weight:.2f}",
                         key=f"weight_{symbol}",
                         help="Enter a number between 0 and 100 with up to 2 decimal places (e.g., 33.33)"
                     )
+                    
                     try:
                         weight = float(weight_str)
                         if weight < 0 or weight > 100:
                             st.error(f"{symbol} weight must be between 0 and 100")
-                            continue
-                        new_weights[symbol] = weight / 100
-                        total_weight += weight
+                            valid_weights = False
+                        else:
+                            new_weights[symbol] = weight
+                            total_weight += weight
                     except ValueError:
                         st.error(f"{symbol} weight must be a number")
-                        continue
+                        valid_weights = False
                 
                 # Display total weight
                 st.write(f"Total Weight: {total_weight:.1f}%")
                 
-                # Warning if weights don't sum to 100%
-                if not np.isclose(total_weight, 100.0, rtol=1e-5):
-                    st.warning("⚠️ Weights must sum to 100%")
-                else:
-                    # Update weights in session state
-                    st.session_state.portfolio_weights = new_weights
-                    st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
+                # Only update weights if all are valid and sum to 100%
+                if valid_weights:
+                    if not np.isclose(total_weight, 100.0, rtol=1e-5):
+                        st.warning("⚠️ Weights must sum to 100%")
+                    else:
+                        # Convert percentages to decimals and update session state
+                        st.session_state.portfolio_weights = {
+                            symbol: weight / 100 
+                            for symbol, weight in new_weights.items()
+                        }
+                        st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
             
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)
