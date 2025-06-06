@@ -42,49 +42,10 @@ def main():
         st.error("Please enter at least one stock symbol")
         return
     
-    # Initialize portfolio weights if not exists
-    if 'portfolio_weights' not in st.session_state:
-        st.session_state.portfolio_weights = {symbol: 1.0/len(symbols) for symbol in symbols}
+    # Always use equal weights for portfolio
+    st.session_state.portfolio_weights = {symbol: 1.0/len(symbols) for symbol in symbols}
     
-    # Add portfolio weights section to sidebar
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Portfolio Weights")
-    st.sidebar.write("Enter weights (%) for each asset:")
-    
-    # Create a form for weights
-    with st.sidebar.form(key=f"portfolio_weights_{','.join(symbols)}"):
-        total_weight = 0
-        new_weights = {}
-        
-        # Create weight inputs
-        for symbol in symbols:
-            weight = st.number_input(
-                f"{symbol} Weight (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=float(st.session_state.portfolio_weights[symbol] * 100),
-                step=0.01,
-                format="%.2f",
-                key=f"weight_{symbol}_{','.join(symbols)}",
-                help="Enter a number between 0 and 100"
-            )
-            new_weights[symbol] = weight
-            total_weight += weight
-        
-        st.write(f"Total: {total_weight:.1f}%")
-        
-        # Submit button for the form
-        submitted = st.form_submit_button("Apply Weights")
-        if submitted:
-            if np.isclose(total_weight, 100.0, rtol=1e-5):
-                # Convert percentages to decimals and update session state
-                st.session_state.portfolio_weights = {
-                    symbol: weight / 100 
-                    for symbol, weight in new_weights.items()
-                }
-                st.success("Weights updated. Click 'Analyze' to recalculate portfolio metrics.")
-            else:
-                st.warning("⚠️ Weights must sum to 100%")
+    # Equal weights are used automatically
     
     # Default dates
     end_date = datetime.now().date()
@@ -99,6 +60,19 @@ def main():
         value=21,
         help="Number of trading days to use for volatility calculation"
     )
+    
+    # Add VaR confidence level selector to sidebar
+    if 'confidence_level' not in st.session_state:
+        st.session_state.confidence_level = 0.95
+    
+    confidence_level = st.sidebar.selectbox(
+        "VaR Confidence Level",
+        [0.90, 0.95, 0.99],
+        index=[0.90, 0.95, 0.99].index(st.session_state.confidence_level),
+        format_func=lambda x: f"{int(x*100)}%",
+        help="Probability level for VaR calculation"
+    )
+    st.session_state.confidence_level = confidence_level
     
     if st.sidebar.button("Analyze"):
         try:
@@ -232,14 +206,8 @@ def main():
             with tabs[len(symbols) + 2]:
                 st.subheader("Value-at-Risk (VaR) Analysis")
                 
-                # Add VaR confidence level selector
-                confidence_level = st.selectbox(
-                    "Confidence Level",
-                    [0.90, 0.95, 0.99],
-                    index=1,
-                    format_func=lambda x: f"{int(x*100)}%",
-                    help="Probability level for VaR calculation"
-                )
+                # Use confidence level from session state
+                confidence_level = st.session_state.confidence_level
                 
                 # Calculate VaR for each asset and portfolio
                 var_results = {}
@@ -344,9 +312,9 @@ def main():
             # Display Portfolio Composition tab
             with tabs[len(symbols) + 4]:
                 st.subheader("Portfolio Composition")
-                st.write("Portfolio weights can be adjusted in the sidebar. Current weights:")
+                st.write("Using equal weights for all assets in the portfolio:")
                 
-                # Display current weights in a table
+                # Display equal weights in a table
                 weights_df = pd.DataFrame({
                     'Symbol': list(st.session_state.portfolio_weights.keys()),
                     'Weight (%)': [f"{w * 100:.2f}" for w in st.session_state.portfolio_weights.values()]
