@@ -14,6 +14,8 @@ from scipy import optimize
 from src.logger import logger
 
 
+from src.constraints import ConstraintSet, create_constraint_set_from_dict
+
 class OptimizationStrategy(ABC):
     """
     Abstract base class for all portfolio optimization strategies.
@@ -61,6 +63,20 @@ class OptimizationStrategy(ABC):
         if returns.isnull().any().any():
             logger.warning("Returns data contains NaN values. These will be filled with 0.")
             returns.fillna(0, inplace=True)
+    
+    def _get_constraint_set(self, constraints: Dict) -> ConstraintSet:
+        """
+        Convert a constraints dictionary to a ConstraintSet object.
+        
+        Args:
+            constraints (Dict): Dictionary of constraints
+            
+        Returns:
+            ConstraintSet: Constraint set object
+        """
+        if isinstance(constraints, ConstraintSet):
+            return constraints
+        return create_constraint_set_from_dict(constraints)
 
 
 class MinVolatilityStrategy(OptimizationStrategy):
@@ -104,59 +120,14 @@ class MinVolatilityStrategy(OptimizationStrategy):
         # Initial guess: equal weights
         initial_weights = np.ones(n_assets) / n_assets
         
-        # Bounds for weights (default: 0 to 1 for each asset)
-        bounds = [(0, 1) for _ in range(n_assets)]
+        # Convert constraints to ConstraintSet
+        constraint_set = self._get_constraint_set(constraints)
         
-        # Apply custom bounds if provided in constraints
-        if 'weight_bounds' in constraints:
-            weight_bounds = constraints['weight_bounds']
-            for i, asset in enumerate(assets):
-                if asset in weight_bounds:
-                    bounds[i] = weight_bounds[asset]
+        # Get bounds for all assets
+        bounds = constraint_set.get_bounds(assets)
         
-        # Allow short selling if specified in constraints
-        if constraints.get('allow_short', False):
-            bounds = [(-1, 1) for _ in range(n_assets)]
-            
-            # Apply custom bounds if provided, but ensure they respect short selling
-            if 'weight_bounds' in constraints:
-                weight_bounds = constraints['weight_bounds']
-                for i, asset in enumerate(assets):
-                    if asset in weight_bounds:
-                        # Ensure lower bound is not less than -1
-                        lower = max(-1, weight_bounds[asset][0])
-                        # Ensure upper bound is not more than 1
-                        upper = min(1, weight_bounds[asset][1])
-                        bounds[i] = (lower, upper)
-        
-        # Maximum position size constraint
-        if 'max_position_size' in constraints:
-            max_size = constraints['max_position_size']
-            bounds = [(max(-1 if constraints.get('allow_short', False) else 0, b[0]), min(max_size, b[1])) for b in bounds]
-        
-        # Constraint: weights sum to 1
-        constraints_list = [
-            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
-        ]
-        
-        # Sector constraints if provided
-        if 'sector_constraints' in constraints and 'asset_sectors' in constraints:
-            sector_constraints = constraints['sector_constraints']
-            asset_sectors = constraints['asset_sectors']
-            
-            for sector, max_allocation in sector_constraints.items():
-                # Get indices of assets in this sector
-                sector_indices = [i for i, asset in enumerate(assets) if asset_sectors.get(asset) == sector]
-                
-                if sector_indices:
-                    # Create a constraint function for this sector
-                    def sector_constraint(weights, indices=sector_indices, max_alloc=max_allocation):
-                        return max_alloc - sum(weights[i] for i in indices)
-                    
-                    constraints_list.append({
-                        'type': 'ineq',
-                        'fun': sector_constraint
-                    })
+        # Get scipy constraints
+        constraints_list = constraint_set.to_scipy_constraints(assets)
         
         # Define the portfolio volatility function to minimize
         def portfolio_volatility(weights):
@@ -228,59 +199,14 @@ class MaxReturnStrategy(OptimizationStrategy):
         # Initial guess: equal weights
         initial_weights = np.ones(n_assets) / n_assets
         
-        # Bounds for weights (default: 0 to 1 for each asset)
-        bounds = [(0, 1) for _ in range(n_assets)]
+        # Convert constraints to ConstraintSet
+        constraint_set = self._get_constraint_set(constraints)
         
-        # Apply custom bounds if provided in constraints
-        if 'weight_bounds' in constraints:
-            weight_bounds = constraints['weight_bounds']
-            for i, asset in enumerate(assets):
-                if asset in weight_bounds:
-                    bounds[i] = weight_bounds[asset]
+        # Get bounds for all assets
+        bounds = constraint_set.get_bounds(assets)
         
-        # Allow short selling if specified in constraints
-        if constraints.get('allow_short', False):
-            bounds = [(-1, 1) for _ in range(n_assets)]
-            
-            # Apply custom bounds if provided, but ensure they respect short selling
-            if 'weight_bounds' in constraints:
-                weight_bounds = constraints['weight_bounds']
-                for i, asset in enumerate(assets):
-                    if asset in weight_bounds:
-                        # Ensure lower bound is not less than -1
-                        lower = max(-1, weight_bounds[asset][0])
-                        # Ensure upper bound is not more than 1
-                        upper = min(1, weight_bounds[asset][1])
-                        bounds[i] = (lower, upper)
-        
-        # Maximum position size constraint
-        if 'max_position_size' in constraints:
-            max_size = constraints['max_position_size']
-            bounds = [(max(-1 if constraints.get('allow_short', False) else 0, b[0]), min(max_size, b[1])) for b in bounds]
-        
-        # Constraint: weights sum to 1
-        constraints_list = [
-            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
-        ]
-        
-        # Sector constraints if provided
-        if 'sector_constraints' in constraints and 'asset_sectors' in constraints:
-            sector_constraints = constraints['sector_constraints']
-            asset_sectors = constraints['asset_sectors']
-            
-            for sector, max_allocation in sector_constraints.items():
-                # Get indices of assets in this sector
-                sector_indices = [i for i, asset in enumerate(assets) if asset_sectors.get(asset) == sector]
-                
-                if sector_indices:
-                    # Create a constraint function for this sector
-                    def sector_constraint(weights, indices=sector_indices, max_alloc=max_allocation):
-                        return max_alloc - sum(weights[i] for i in indices)
-                    
-                    constraints_list.append({
-                        'type': 'ineq',
-                        'fun': sector_constraint
-                    })
+        # Get scipy constraints
+        constraints_list = constraint_set.to_scipy_constraints(assets)
         
         # Define the negative expected return function to minimize
         def negative_expected_return(weights):
@@ -370,59 +296,14 @@ class EqualRiskStrategy(OptimizationStrategy):
             
             return deviation
         
-        # Bounds for weights (default: 0 to 1 for each asset)
-        bounds = [(0, 1) for _ in range(n_assets)]
+        # Convert constraints to ConstraintSet
+        constraint_set = self._get_constraint_set(constraints)
         
-        # Apply custom bounds if provided in constraints
-        if 'weight_bounds' in constraints:
-            weight_bounds = constraints['weight_bounds']
-            for i, asset in enumerate(assets):
-                if asset in weight_bounds:
-                    bounds[i] = weight_bounds[asset]
+        # Get bounds for all assets
+        bounds = constraint_set.get_bounds(assets)
         
-        # Allow short selling if specified in constraints
-        if constraints.get('allow_short', False):
-            bounds = [(-1, 1) for _ in range(n_assets)]
-            
-            # Apply custom bounds if provided, but ensure they respect short selling
-            if 'weight_bounds' in constraints:
-                weight_bounds = constraints['weight_bounds']
-                for i, asset in enumerate(assets):
-                    if asset in weight_bounds:
-                        # Ensure lower bound is not less than -1
-                        lower = max(-1, weight_bounds[asset][0])
-                        # Ensure upper bound is not more than 1
-                        upper = min(1, weight_bounds[asset][1])
-                        bounds[i] = (lower, upper)
-        
-        # Maximum position size constraint
-        if 'max_position_size' in constraints:
-            max_size = constraints['max_position_size']
-            bounds = [(max(-1 if constraints.get('allow_short', False) else 0, b[0]), min(max_size, b[1])) for b in bounds]
-        
-        # Constraint: weights sum to 1
-        constraints_list = [
-            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
-        ]
-        
-        # Sector constraints if provided
-        if 'sector_constraints' in constraints and 'asset_sectors' in constraints:
-            sector_constraints = constraints['sector_constraints']
-            asset_sectors = constraints['asset_sectors']
-            
-            for sector, max_allocation in sector_constraints.items():
-                # Get indices of assets in this sector
-                sector_indices = [i for i, asset in enumerate(assets) if asset_sectors.get(asset) == sector]
-                
-                if sector_indices:
-                    # Create a constraint function for this sector
-                    def sector_constraint(weights, indices=sector_indices, max_alloc=max_allocation):
-                        return max_alloc - sum(weights[i] for i in indices)
-                    
-                    constraints_list.append({
-                        'type': 'ineq',
-                        'fun': sector_constraint
-                    })
+        # Get scipy constraints
+        constraints_list = constraint_set.to_scipy_constraints(assets)
         
         # Optimize using scipy's minimize function
         optimization_result = optimize.minimize(
@@ -498,59 +379,14 @@ class MaxSharpeStrategy(OptimizationStrategy):
         # Initial guess: equal weights
         initial_weights = np.ones(n_assets) / n_assets
         
-        # Bounds for weights (default: 0 to 1 for each asset)
-        bounds = [(0, 1) for _ in range(n_assets)]
+        # Convert constraints to ConstraintSet
+        constraint_set = self._get_constraint_set(constraints)
         
-        # Apply custom bounds if provided in constraints
-        if 'weight_bounds' in constraints:
-            weight_bounds = constraints['weight_bounds']
-            for i, asset in enumerate(assets):
-                if asset in weight_bounds:
-                    bounds[i] = weight_bounds[asset]
+        # Get bounds for all assets
+        bounds = constraint_set.get_bounds(assets)
         
-        # Allow short selling if specified in constraints
-        if constraints.get('allow_short', False):
-            bounds = [(-1, 1) for _ in range(n_assets)]
-            
-            # Apply custom bounds if provided, but ensure they respect short selling
-            if 'weight_bounds' in constraints:
-                weight_bounds = constraints['weight_bounds']
-                for i, asset in enumerate(assets):
-                    if asset in weight_bounds:
-                        # Ensure lower bound is not less than -1
-                        lower = max(-1, weight_bounds[asset][0])
-                        # Ensure upper bound is not more than 1
-                        upper = min(1, weight_bounds[asset][1])
-                        bounds[i] = (lower, upper)
-        
-        # Maximum position size constraint
-        if 'max_position_size' in constraints:
-            max_size = constraints['max_position_size']
-            bounds = [(max(-1 if constraints.get('allow_short', False) else 0, b[0]), min(max_size, b[1])) for b in bounds]
-        
-        # Constraint: weights sum to 1
-        constraints_list = [
-            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
-        ]
-        
-        # Sector constraints if provided
-        if 'sector_constraints' in constraints and 'asset_sectors' in constraints:
-            sector_constraints = constraints['sector_constraints']
-            asset_sectors = constraints['asset_sectors']
-            
-            for sector, max_allocation in sector_constraints.items():
-                # Get indices of assets in this sector
-                sector_indices = [i for i, asset in enumerate(assets) if asset_sectors.get(asset) == sector]
-                
-                if sector_indices:
-                    # Create a constraint function for this sector
-                    def sector_constraint(weights, indices=sector_indices, max_alloc=max_allocation):
-                        return max_alloc - sum(weights[i] for i in indices)
-                    
-                    constraints_list.append({
-                        'type': 'ineq',
-                        'fun': sector_constraint
-                    })
+        # Get scipy constraints
+        constraints_list = constraint_set.to_scipy_constraints(assets)
         
         # Define the negative Sharpe ratio function to minimize
         def negative_sharpe_ratio(weights):
@@ -621,7 +457,10 @@ class PortfolioOptimizer:
         Args:
             constraints (Dict): Dictionary of constraints to apply
         """
-        self.constraints = constraints
+        if isinstance(constraints, ConstraintSet):
+            self.constraints = constraints
+        else:
+            self.constraints = create_constraint_set_from_dict(constraints)
     
     def optimize(self) -> Dict[str, float]:
         """
