@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import pytz
-from src.optimization import OptimizationStrategy, PortfolioOptimizer, calculate_portfolio_metrics, calculate_risk_contribution, MaxSharpeStrategy, MinVolatilityStrategy
+from src.optimization import OptimizationStrategy, PortfolioOptimizer, calculate_portfolio_metrics, calculate_risk_contribution, MaxSharpeStrategy, MinVolatilityStrategy, EqualRiskStrategy, MaxReturnStrategy
 
 class MockStrategy(OptimizationStrategy):
     """Mock strategy for testing the optimizer."""
@@ -285,3 +285,130 @@ def test_min_volatility_strategy_with_short_selling(sample_returns):
     # Check that all weights are within bounds [-1, 1]
     for weight in weights.values():
         assert -1 <= weight <= 1
+
+
+def test_equal_risk_strategy_initialization():
+    """Test that the EqualRiskStrategy initializes correctly."""
+    strategy = EqualRiskStrategy()
+    assert strategy.get_name() == "Equal Risk Contribution"
+
+
+def test_equal_risk_strategy_optimize(sample_returns):
+    """Test the EqualRiskStrategy optimization."""
+    strategy = EqualRiskStrategy()
+    
+    # Test with default constraints
+    weights = strategy.optimize(sample_returns, {})
+    
+    # Check that weights are returned for all assets
+    assert set(weights.keys()) == set(sample_returns.columns)
+    
+    # Check that weights sum to approximately 1.0
+    assert np.isclose(sum(weights.values()), 1.0, rtol=1e-5)
+    
+    # Check that all weights are within bounds [0, 1]
+    for weight in weights.values():
+        assert 0 <= weight <= 1
+    
+    # Calculate risk contribution for each asset
+    risk_contrib = calculate_risk_contribution(weights, sample_returns)
+    
+    # In an equal risk contribution portfolio, each asset should contribute
+    # approximately the same amount of risk
+    risk_values = list(risk_contrib.values())
+    for i in range(1, len(risk_values)):
+        # Allow for some numerical optimization error
+        assert np.isclose(risk_values[0], risk_values[i], rtol=0.1)
+
+
+def test_equal_risk_strategy_with_constraints(sample_returns):
+    """Test the EqualRiskStrategy with custom constraints."""
+    strategy = EqualRiskStrategy()
+    
+    # Test with custom weight bounds
+    constraints = {
+        'weight_bounds': {
+            'AAPL': (0.2, 0.4),
+            'MSFT': (0.1, 0.3),
+            'GOOGL': (0.3, 0.5)
+        }
+    }
+    
+    weights = strategy.optimize(sample_returns, constraints)
+    
+    # Check that weights respect the bounds
+    assert 0.2 <= weights['AAPL'] <= 0.4
+    assert 0.1 <= weights['MSFT'] <= 0.3
+    assert 0.3 <= weights['GOOGL'] <= 0.5
+    
+    # Check that weights sum to approximately 1.0
+    assert np.isclose(sum(weights.values()), 1.0, rtol=1e-5)
+
+
+def test_max_return_strategy_initialization():
+    """Test that the MaxReturnStrategy initializes correctly."""
+    strategy = MaxReturnStrategy()
+    assert strategy.get_name() == "Maximum Return"
+
+
+def test_max_return_strategy_optimize(sample_returns):
+    """Test the MaxReturnStrategy optimization."""
+    strategy = MaxReturnStrategy()
+    
+    # Test with default constraints
+    weights = strategy.optimize(sample_returns, {})
+    
+    # Check that weights are returned for all assets
+    assert set(weights.keys()) == set(sample_returns.columns)
+    
+    # Check that weights sum to approximately 1.0
+    assert np.isclose(sum(weights.values()), 1.0, rtol=1e-5)
+    
+    # Check that all weights are within bounds [0, 1]
+    for weight in weights.values():
+        assert 0 <= weight <= 1
+    
+    # Without constraints, MaxReturnStrategy should allocate 100% to the asset
+    # with the highest expected return
+    mean_returns = sample_returns.mean() * 252  # Annualized returns
+    max_return_asset = mean_returns.idxmax()
+    
+    # The asset with the highest return should have a weight close to 1.0
+    # (allowing for some numerical precision issues)
+    assert weights[max_return_asset] > 0.99
+
+
+def test_max_return_strategy_with_constraints(sample_returns):
+    """Test the MaxReturnStrategy with custom constraints."""
+    strategy = MaxReturnStrategy()
+    
+    # Test with custom weight bounds
+    constraints = {
+        'weight_bounds': {
+            'AAPL': (0.2, 0.4),
+            'MSFT': (0.1, 0.3),
+            'GOOGL': (0.3, 0.5)
+        }
+    }
+    
+    weights = strategy.optimize(sample_returns, constraints)
+    
+    # Check that weights respect the bounds
+    assert 0.2 <= weights['AAPL'] <= 0.4
+    assert 0.1 <= weights['MSFT'] <= 0.3
+    assert 0.3 <= weights['GOOGL'] <= 0.5
+    
+    # Check that weights sum to approximately 1.0
+    assert np.isclose(sum(weights.values()), 1.0, rtol=1e-5)
+    
+    # With constraints, the strategy should allocate as much as possible to the
+    # assets with the highest returns, within the constraints
+    mean_returns = sample_returns.mean() * 252  # Annualized returns
+    sorted_assets = mean_returns.sort_values(ascending=False).index
+    
+    # The asset with the highest return should be at its upper bound
+    # (if it's not at the upper bound, it means another asset has a higher return)
+    highest_return_asset = sorted_assets[0]
+    if highest_return_asset in constraints['weight_bounds']:
+        upper_bound = constraints['weight_bounds'][highest_return_asset][1]
+        assert np.isclose(weights[highest_return_asset], upper_bound, rtol=1e-5)

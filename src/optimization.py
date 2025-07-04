@@ -186,6 +186,267 @@ class MinVolatilityStrategy(OptimizationStrategy):
         return weights_dict
 
 
+class MaxReturnStrategy(OptimizationStrategy):
+    """
+    Implementation of Maximum Return strategy.
+    
+    This strategy aims to find the portfolio weights that maximize the expected
+    return, regardless of risk. Without constraints, this will typically allocate
+    100% to the asset with the highest expected return.
+    """
+    
+    def get_name(self) -> str:
+        """
+        Get the name of the strategy.
+        
+        Returns:
+            str: Strategy name
+        """
+        return "Maximum Return"
+    
+    def optimize(self, returns: pd.DataFrame, constraints: Dict) -> Dict[str, float]:
+        """
+        Optimize portfolio weights to maximize expected return.
+        
+        Args:
+            returns (pd.DataFrame): Historical returns for all assets
+            constraints (Dict): Dictionary of constraints to apply
+            
+        Returns:
+            Dict[str, float]: Optimized weights for each asset
+        """
+        # Validate inputs
+        self._validate_returns(returns)
+        
+        # Get asset names and count
+        assets = returns.columns
+        n_assets = len(assets)
+        
+        # Calculate annualized mean returns
+        mean_returns = returns.mean() * 252  # Assuming 252 trading days in a year
+        
+        # Initial guess: equal weights
+        initial_weights = np.ones(n_assets) / n_assets
+        
+        # Bounds for weights (default: 0 to 1 for each asset)
+        bounds = [(0, 1) for _ in range(n_assets)]
+        
+        # Apply custom bounds if provided in constraints
+        if 'weight_bounds' in constraints:
+            weight_bounds = constraints['weight_bounds']
+            for i, asset in enumerate(assets):
+                if asset in weight_bounds:
+                    bounds[i] = weight_bounds[asset]
+        
+        # Allow short selling if specified in constraints
+        if constraints.get('allow_short', False):
+            bounds = [(-1, 1) for _ in range(n_assets)]
+            
+            # Apply custom bounds if provided, but ensure they respect short selling
+            if 'weight_bounds' in constraints:
+                weight_bounds = constraints['weight_bounds']
+                for i, asset in enumerate(assets):
+                    if asset in weight_bounds:
+                        # Ensure lower bound is not less than -1
+                        lower = max(-1, weight_bounds[asset][0])
+                        # Ensure upper bound is not more than 1
+                        upper = min(1, weight_bounds[asset][1])
+                        bounds[i] = (lower, upper)
+        
+        # Maximum position size constraint
+        if 'max_position_size' in constraints:
+            max_size = constraints['max_position_size']
+            bounds = [(max(-1 if constraints.get('allow_short', False) else 0, b[0]), min(max_size, b[1])) for b in bounds]
+        
+        # Constraint: weights sum to 1
+        constraints_list = [
+            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
+        ]
+        
+        # Sector constraints if provided
+        if 'sector_constraints' in constraints and 'asset_sectors' in constraints:
+            sector_constraints = constraints['sector_constraints']
+            asset_sectors = constraints['asset_sectors']
+            
+            for sector, max_allocation in sector_constraints.items():
+                # Get indices of assets in this sector
+                sector_indices = [i for i, asset in enumerate(assets) if asset_sectors.get(asset) == sector]
+                
+                if sector_indices:
+                    # Create a constraint function for this sector
+                    def sector_constraint(weights, indices=sector_indices, max_alloc=max_allocation):
+                        return max_alloc - sum(weights[i] for i in indices)
+                    
+                    constraints_list.append({
+                        'type': 'ineq',
+                        'fun': sector_constraint
+                    })
+        
+        # Define the negative expected return function to minimize
+        def negative_expected_return(weights):
+            weights_array = np.array(weights)
+            portfolio_return = np.sum(mean_returns * weights_array)
+            return -portfolio_return  # Negative because we want to maximize return
+        
+        # Optimize using scipy's minimize function
+        optimization_result = optimize.minimize(
+            negative_expected_return,
+            initial_weights,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints_list
+        )
+        
+        # Check if optimization was successful
+        if not optimization_result['success']:
+            logger.warning(f"Optimization failed: {optimization_result['message']}")
+        
+        # Get the optimized weights
+        optimized_weights = optimization_result['x']
+        
+        # Convert to dictionary
+        weights_dict = {asset: weight for asset, weight in zip(assets, optimized_weights)}
+        
+        return weights_dict
+
+
+class EqualRiskStrategy(OptimizationStrategy):
+    """
+    Implementation of Equal Risk Contribution strategy.
+    
+    This strategy aims to find portfolio weights where each asset contributes
+    equally to the total portfolio risk (risk parity).
+    """
+    
+    def get_name(self) -> str:
+        """
+        Get the name of the strategy.
+        
+        Returns:
+            str: Strategy name
+        """
+        return "Equal Risk Contribution"
+    
+    def optimize(self, returns: pd.DataFrame, constraints: Dict) -> Dict[str, float]:
+        """
+        Optimize portfolio weights for equal risk contribution.
+        
+        Args:
+            returns (pd.DataFrame): Historical returns for all assets
+            constraints (Dict): Dictionary of constraints to apply
+            
+        Returns:
+            Dict[str, float]: Optimized weights for each asset
+        """
+        # Validate inputs
+        self._validate_returns(returns)
+        
+        # Get asset names and count
+        assets = returns.columns
+        n_assets = len(assets)
+        
+        # Calculate annualized covariance matrix
+        cov_matrix = returns.cov() * 252  # Assuming 252 trading days in a year
+        
+        # Initial guess: equal weights
+        initial_weights = np.ones(n_assets) / n_assets
+        
+        # Define the risk contribution objective function
+        def risk_contribution_objective(weights):
+            weights_array = np.array(weights)
+            portfolio_volatility = np.sqrt(weights_array.T @ cov_matrix @ weights_array)
+            
+            # Calculate marginal contribution to risk for each asset
+            mcr = cov_matrix @ weights_array
+            
+            # Calculate risk contribution for each asset
+            risk_contribution = weights_array * mcr / portfolio_volatility
+            
+            # Target risk contribution (equal for all assets)
+            target_risk = portfolio_volatility / n_assets
+            
+            # Calculate the sum of squared deviations from target risk contribution
+            deviation = sum((risk_contribution - target_risk) ** 2)
+            
+            return deviation
+        
+        # Bounds for weights (default: 0 to 1 for each asset)
+        bounds = [(0, 1) for _ in range(n_assets)]
+        
+        # Apply custom bounds if provided in constraints
+        if 'weight_bounds' in constraints:
+            weight_bounds = constraints['weight_bounds']
+            for i, asset in enumerate(assets):
+                if asset in weight_bounds:
+                    bounds[i] = weight_bounds[asset]
+        
+        # Allow short selling if specified in constraints
+        if constraints.get('allow_short', False):
+            bounds = [(-1, 1) for _ in range(n_assets)]
+            
+            # Apply custom bounds if provided, but ensure they respect short selling
+            if 'weight_bounds' in constraints:
+                weight_bounds = constraints['weight_bounds']
+                for i, asset in enumerate(assets):
+                    if asset in weight_bounds:
+                        # Ensure lower bound is not less than -1
+                        lower = max(-1, weight_bounds[asset][0])
+                        # Ensure upper bound is not more than 1
+                        upper = min(1, weight_bounds[asset][1])
+                        bounds[i] = (lower, upper)
+        
+        # Maximum position size constraint
+        if 'max_position_size' in constraints:
+            max_size = constraints['max_position_size']
+            bounds = [(max(-1 if constraints.get('allow_short', False) else 0, b[0]), min(max_size, b[1])) for b in bounds]
+        
+        # Constraint: weights sum to 1
+        constraints_list = [
+            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
+        ]
+        
+        # Sector constraints if provided
+        if 'sector_constraints' in constraints and 'asset_sectors' in constraints:
+            sector_constraints = constraints['sector_constraints']
+            asset_sectors = constraints['asset_sectors']
+            
+            for sector, max_allocation in sector_constraints.items():
+                # Get indices of assets in this sector
+                sector_indices = [i for i, asset in enumerate(assets) if asset_sectors.get(asset) == sector]
+                
+                if sector_indices:
+                    # Create a constraint function for this sector
+                    def sector_constraint(weights, indices=sector_indices, max_alloc=max_allocation):
+                        return max_alloc - sum(weights[i] for i in indices)
+                    
+                    constraints_list.append({
+                        'type': 'ineq',
+                        'fun': sector_constraint
+                    })
+        
+        # Optimize using scipy's minimize function
+        optimization_result = optimize.minimize(
+            risk_contribution_objective,
+            initial_weights,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints_list,
+            options={'maxiter': 1000}
+        )
+        
+        # Check if optimization was successful
+        if not optimization_result['success']:
+            logger.warning(f"Optimization failed: {optimization_result['message']}")
+        
+        # Get the optimized weights
+        optimized_weights = optimization_result['x']
+        
+        # Convert to dictionary
+        weights_dict = {asset: weight for asset, weight in zip(assets, optimized_weights)}
+        
+        return weights_dict
+
+
 class MaxSharpeStrategy(OptimizationStrategy):
     """
     Implementation of Maximum Sharpe Ratio strategy.
