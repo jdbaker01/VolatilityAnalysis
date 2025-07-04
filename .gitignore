@@ -42,3 +42,15 @@ cache/
 
 # Misc
 .DS_Store
+
+# Clinerules
+.clinerules/
+
+# Logs
+logs/
+
+# Kiro
+.kiro/
+
+# Memory Bank
+memory-bank/
