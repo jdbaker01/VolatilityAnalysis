@@ -12,8 +12,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Optional
 from scipy import optimize
 from src.logger import logger
-
-
 from src.constraints import ConstraintSet, create_constraint_set_from_dict
 
 class OptimizationStrategy(ABC):

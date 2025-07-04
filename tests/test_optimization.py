@@ -52,10 +52,14 @@ def test_portfolio_optimizer_set_constraints(sample_returns):
     strategy = MockStrategy()
     optimizer = PortfolioOptimizer(sample_returns, strategy)
     
-    constraints = {'min_weight': 0.1, 'max_weight': 0.5}
+    constraints = {'allow_short': False, 'max_position_size': 0.5}
     optimizer.set_constraints(constraints)
     
-    assert optimizer.constraints == constraints
+    # Check that constraints were converted to a ConstraintSet
+    from src.constraints import ConstraintSet
+    assert isinstance(optimizer.constraints, ConstraintSet)
+    assert optimizer.constraints.allow_short is False
+    assert optimizer.constraints.max_position_size == 0.5
 
 
 def test_portfolio_optimizer_optimize(sample_returns):

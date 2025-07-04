@@ -14,7 +14,8 @@ def create_sample_returns():
     # Create a date range
     dates = [datetime.now(pytz.UTC) - timedelta(days=i) for i in range(100)]
     
-    # Create sample returns for 3 assets
+    # Create sample returns for 3 assets with fixed seed for reproducibility
+    np.random.seed(42)
     data = {
         'AAPL': np.random.normal(0.001, 0.02, 100),
         'MSFT': np.random.normal(0.0012, 0.018, 100),
